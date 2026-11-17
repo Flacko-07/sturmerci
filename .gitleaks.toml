@@ -1,0 +1,17 @@
+title = "Sentinel repo scan"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic Gitleaks fixtures — deliberately trigger rules for adapter tests"
+paths = ['''^tests/fixtures/gitleaks_repo/''']
+
+[[allowlists]]
+description = "Fixture AWS key quoted in operator-guide.md line 194"
+regexTarget = "match"
+regexes = ['''AKIAQ3EGVZ7J4M2KPL5N''']
+
+[[allowlists]]
+description = "Compiled Python bytecode — constant-folded synthetic fixture strings, never committed"
+paths = ['''__pycache__/''', '''\.pyc$''']

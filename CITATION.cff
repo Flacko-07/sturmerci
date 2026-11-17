@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use Sturmer Cyber Intelligence, cite the repository release you used."
+title: "Sturmer Cyber Intelligence"
+version: 0.1.0
+date-released: 2026-11-16
+license: Apache-2.0
+abstract: >-
+  Local-first security assessment workbench for explicitly authorized,
+  operator-led engagements.

@@ -1,0 +1,11 @@
+released_at: 2026-11-13T15:10:24Z
+released_by: nflacko
+egress_tests_passing: 20
+policy_tests_passing: 132
+design_doc: docs/egress-architecture-v1.1.md
+artifacts: tests/egress/release-artifacts/
+note: |
+  Milestone 4 closed. Network-capable adapters may now be registered
+  in sentinel.runner.registry with execution_class >= 2. Each adapter
+  must still satisfy the per-adapter requirements (manifest, approval,
+  path containment, etc.) documented in SENTINEL-ECR-001 §5 and §8.

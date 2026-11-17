@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and review tools
+        run: python -m pip install -e '.[dev]' build pip-audit cyclonedx-bom ruff
+      - name: Lint
+        run: ruff check --select E4,E7,E9,F src tests
+      - name: Check Python formatting
+        run: ruff format --check src tests
+      - name: Compile source
+        run: python -m compileall -q src
+      - name: Run non-privileged tests
+        run: >-
+          python -m pytest -q
+          --ignore=tests/egress
+          --ignore-glob='*_integration.py'
+          tests/adapters tests/runner tests/policy tests/findings tests/cli
+          tests/l7 tests/llm tests/knowledge tests/triage tests/cvss
+          tests/test_user_paths.py tests/test_packaging_resources.py
+      - name: Audit Python dependencies
+        run: python -m pip_audit --strict
+      - name: Generate environment SBOM
+        run: cyclonedx-py environment --output-file sbom.json --output-format JSON
+      - name: Build wheel
+        run: python -m build --wheel
+      - name: Check required wheel resources and metadata
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          wheel, = Path("dist").glob("*.whl")
+          with ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+              assert sum(name.startswith("sentinel/storage/migrations/") and name.endswith(".sql") for name in names) >= 21
+              assert "sentinel/resources/wordlists/common.txt" not in names
+              metadata_name = next(name for name in names if name.endswith(".dist-info/METADATA"))
+              metadata = archive.read(metadata_name).decode()
+              assert "Name: sturmercyberintelligence" in metadata
+              assert "License-Expression: Apache-2.0" in metadata
+              entry_points = archive.read(next(name for name in names if name.endswith(".dist-info/entry_points.txt"))).decode()
+              assert "sentinel = sentinel.cli:app" in entry_points
+          PY
+      - name: Upload wheel and SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sturmer-review-artifacts
+          path: |
+            dist/*.whl
+            sbom.json
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
