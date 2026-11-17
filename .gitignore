@@ -22,10 +22,10 @@ venv/
 *.sqlite3-shm
 /data/*.sqlite3-*
 /data/benchmark_qwen3_4b.jsonl
-engagements/
-evidence/
-scan-output/
-scan-results/
+/engagements/
+/evidence/
+/scan-output/
+/scan-results/
 reports/generated/
 logs/
 *.log
