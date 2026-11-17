@@ -36,6 +36,8 @@ def test_e00b_docker_nft_tables():
     """E-00b: Docker's nft tables remain intact (>= 3 table ip*)."""
     if os.geteuid() != 0:
         pytest.skip("requires root")
+    if os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv"):
+        pytest.skip("host requirement not satisfiable inside a container")
     r = subprocess.run(
         ["nft", "list", "tables"],
         capture_output=True,

@@ -442,6 +442,8 @@ def test_e21_namespace_processes_killed_on_exit():
     leave orphan processes in a zombie-free state.
     """
     import tempfile
+    if Path("/.dockerenv").exists() or Path("/run/.containerenv").exists():
+        pytest.skip("host requirement not satisfiable inside a container")
 
     tmpdir = Path(tempfile.mkdtemp(prefix="sentinel-e21-"))
     pid_file = tmpdir / "pid"
