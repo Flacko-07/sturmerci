@@ -34,7 +34,7 @@ jobs:
           tests/l7 tests/llm tests/knowledge tests/triage tests/cvss
           tests/test_user_paths.py tests/test_packaging_resources.py
       - name: Audit Python dependencies
-        run: python -m pip_audit --strict
+        run: python -m pip_audit --strict --skip-editable
       - name: Generate environment SBOM
         run: cyclonedx-py environment --output-file sbom.json --output-format JSON
       - name: Build wheel
