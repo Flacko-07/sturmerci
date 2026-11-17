@@ -136,7 +136,6 @@ class L7CA:
         hostname = hostname.rstrip(".").lower()
 
         # Determine SAN entries
-        is_ip = False
         try:
             ip_obj = ipaddress.ip_address(hostname)
             san_entries: list[x509.GeneralName] = [x509.IPAddress(ip_obj)]

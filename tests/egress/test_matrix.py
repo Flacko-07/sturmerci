@@ -450,7 +450,7 @@ def test_e21_namespace_processes_killed_on_exit():
     launcher: subprocess.Popen | None = None
 
     try:
-        with run_namespace(approved=[], hostname_records={}):
+        with run_namespace(approved=[], hostname_records={}) as ns:
             script = (
                 "import os, subprocess, time\n"
                 "p = subprocess.Popen(['sleep', '60'])\n"
@@ -546,7 +546,7 @@ def test_e20b_sysctls_restored_after_exception():
     pre = {n: _sysctl_value(n) for n in names}
 
     with pytest.raises(RuntimeError, match="simulated-scanner-crash"):
-        with run_namespace(approved=[], hostname_records={}) as ns:
+        with run_namespace(approved=[], hostname_records={}):
             # Inside the run: values enforced
             assert _sysctl_value("net.ipv4.conf.all.rp_filter") == "0"
             raise RuntimeError("simulated-scanner-crash")
