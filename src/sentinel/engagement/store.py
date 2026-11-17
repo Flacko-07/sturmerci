@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Engagement lifecycle store."""
+
 from __future__ import annotations
 
 import shutil
@@ -33,10 +34,15 @@ class Engagement:
 
 def _row_to_engagement(row) -> Engagement:
     return Engagement(
-        id=row["id"], platform=row["platform"], program_name=row["program_name"],
-        policy_url=row["policy_url"], state=row["state"],
-        created_at_utc=row["created_at_utc"], updated_at_utc=row["updated_at_utc"],
-        created_by=row["created_by"], closed_at_utc=row["closed_at_utc"],
+        id=row["id"],
+        platform=row["platform"],
+        program_name=row["program_name"],
+        policy_url=row["policy_url"],
+        state=row["state"],
+        created_at_utc=row["created_at_utc"],
+        updated_at_utc=row["updated_at_utc"],
+        created_by=row["created_by"],
+        closed_at_utc=row["closed_at_utc"],
     )
 
 
@@ -45,7 +51,8 @@ class EngagementStore:
         self._db, self._owns_db = coerce_db(db)
 
     def create(
-        self, *,
+        self,
+        *,
         platform: str,
         program_name: str,
         policy_url: str | None,
@@ -65,8 +72,10 @@ class EngagementStore:
                     (eng_id, platform, program_name, policy_url, now, now, actor),
                 )
                 AuditStore(self._db).append(
-                    engagement_id=eng_id, actor=actor,
-                    event_type="engagement_created", decision="ok",
+                    engagement_id=eng_id,
+                    actor=actor,
+                    event_type="engagement_created",
+                    decision="ok",
                     details={"platform": platform, "program_name": program_name},
                 )
         except Exception:
@@ -108,8 +117,10 @@ class EngagementStore:
                     (to_state, now, engagement_id),
                 )
             AuditStore(self._db).append(
-                engagement_id=engagement_id, actor=actor,
-                event_type="engagement_transition", decision=to_state,
+                engagement_id=engagement_id,
+                actor=actor,
+                event_type="engagement_transition",
+                decision=to_state,
                 details={"from": eng.state, "to": to_state},
             )
         new_eng = self.get(engagement_id)

@@ -5,6 +5,7 @@ Safety: all untrusted content (finding summaries, evidence excerpts,
 model output) is escaped for Markdown context. The reviewer must
 never paste LLM output directly into a report without this layer.
 """
+
 from __future__ import annotations
 
 import json
@@ -22,11 +23,24 @@ class ReportError(Exception):
 # We escape to prevent a hostile model output or evidence excerpt
 # from rendering as HTML, javascript: URI, or table-breaking structure.
 _MD_ESCAPE = {
-    "\\": "\\\\", "`": "\\`", "*": "\\*", "_": "\\_",
-    "{": "\\{", "}": "\\}", "[": "\\[", "]": "\\]",
-    "(": "\\(", ")": "\\)", "#": "\\#", "+": "\\+",
-    "-": "\\-", ".": "\\.", "!": "\\!", "|": "\\|",
-    ">": "\\>", "<": "\\<",
+    "\\": "\\\\",
+    "`": "\\`",
+    "*": "\\*",
+    "_": "\\_",
+    "{": "\\{",
+    "}": "\\}",
+    "[": "\\[",
+    "]": "\\]",
+    "(": "\\(",
+    ")": "\\)",
+    "#": "\\#",
+    "+": "\\+",
+    "-": "\\-",
+    ".": "\\.",
+    "!": "\\!",
+    "|": "\\|",
+    ">": "\\>",
+    "<": "\\<",
 }
 _MD_ESCAPE_RE = re.compile("|".join(re.escape(c) for c in _MD_ESCAPE))
 _DANGEROUS_URI_RE = re.compile(
@@ -56,17 +70,26 @@ def generate_report(
     db_obj, owns = coerce_db(db)
     try:
         eng = db_obj.connection.execute(
-            "SELECT * FROM engagements WHERE id = ?", (engagement_id,),
+            "SELECT * FROM engagements WHERE id = ?",
+            (engagement_id,),
         ).fetchone()
         if not eng:
             raise ReportError(f"engagement {engagement_id!r} not found")
 
         states = (
-            ("candidate", "needs_evidence", "ready_for_review",
-             "human_validated", "report_ready", "submitted",
-             "resolved", "duplicate", "rejected")
-            if include_candidate else
-            ("human_validated", "report_ready", "submitted", "resolved")
+            (
+                "candidate",
+                "needs_evidence",
+                "ready_for_review",
+                "human_validated",
+                "report_ready",
+                "submitted",
+                "resolved",
+                "duplicate",
+                "rejected",
+            )
+            if include_candidate
+            else ("human_validated", "report_ready", "submitted", "resolved")
         )
         placeholders = ",".join("?" * len(states))
         findings = db_obj.connection.execute(
@@ -81,6 +104,7 @@ def generate_report(
         # metadata even though the Markdown output exposes hashes, not raw
         # evidence content.
         from sentinel.evidence.integrity import read_verified_sanitized
+
         evidence_ids = db_obj.connection.execute(
             "SELECT DISTINCT a.id, a.engagement_id, a.sanitized_path, "
             "a.sanitized_sha256, a.sanitized_size_bytes, a.execution_status "
@@ -96,12 +120,16 @@ def generate_report(
         for evidence in evidence_ids:
             if evidence["execution_status"] != "COMPLETED":
                 from sentinel.audit.store import AuditStore
+
                 AuditStore(db_obj).append(
-                    engagement_id=engagement_id, actor="report-generator",
+                    engagement_id=engagement_id,
+                    actor="report-generator",
                     event_type="report_rejected_incomplete_evidence",
                     decision="denied",
-                    details={"evidence_id": evidence["id"],
-                             "execution_status": evidence["execution_status"]},
+                    details={
+                        "evidence_id": evidence["id"],
+                        "execution_status": evidence["execution_status"],
+                    },
                 )
                 raise ReportError(
                     f"evidence {evidence['id']!r} has execution status "
@@ -109,12 +137,14 @@ def generate_report(
                     "output cannot be represented as a completed assessment."
                 )
             read_verified_sanitized(
-                db_obj, artifact_id=evidence["id"],
+                db_obj,
+                artifact_id=evidence["id"],
                 engagement_id=engagement_id,
                 sanitized_path=evidence["sanitized_path"],
                 expected_sha256=evidence["sanitized_sha256"],
                 expected_size=evidence["sanitized_size_bytes"],
-                actor="report-generator", consumer="report",
+                actor="report-generator",
+                consumer="report",
             )
 
         out: list[str] = []
@@ -125,8 +155,10 @@ def generate_report(
             out.append(f"**Policy:** {_escape_md(eng['policy_url'])}  ")
         out.append(f"**State:** {eng['state']}  ")
         out.append(f"**Report generated:** {_iso_now()}  ")
-        out.append(f"**Findings included:** {len(findings)} "
-                   f"({'all states' if include_candidate else 'validated only'})\n")
+        out.append(
+            f"**Findings included:** {len(findings)} "
+            f"({'all states' if include_candidate else 'validated only'})\n"
+        )
 
         if not findings:
             out.append("\n_No findings to report._\n")
@@ -167,8 +199,9 @@ def _render_finding(db, idx: int, f) -> list[str]:
     out.append("")
 
     out.append(f"**Summary:** {_escape_md(f['summary'] or '')}\n")
-    out.append(f"**Recommended next step:** "
-               f"{_escape_md(f['recommended_next_step'] or '')}\n")
+    out.append(
+        f"**Recommended next step:** {_escape_md(f['recommended_next_step'] or '')}\n"
+    )
 
     refs = _json_or_empty(f["possible_references_json"])
     if refs:

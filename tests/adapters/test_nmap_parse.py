@@ -1,14 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for Nmap adapter. No root needed."""
+
 import pytest
 
 from sentinel.adapters.nmap import (
-    build_argv, parse_output, _assert_no_forbidden_flags,
-    NmapAdapterError, FORBIDDEN_FLAGS, PortObservation,
+    build_argv,
+    parse_output,
+    _assert_no_forbidden_flags,
+    NmapAdapterError,
+    FORBIDDEN_FLAGS,
 )
 
 
 # --- build_argv ---
+
 
 def test_build_argv_basic():
     argv = build_argv("/usr/bin/nmap", "probe.test", [22, 80, 443], 50)
@@ -49,6 +54,7 @@ def test_build_argv_rejects_bad_rate():
 
 # --- forbidden flag detection ---
 
+
 @pytest.mark.parametrize("flag", FORBIDDEN_FLAGS)
 def test_forbidden_flag_rejected(flag):
     with pytest.raises(NmapAdapterError, match="forbidden"):
@@ -62,7 +68,7 @@ def test_forbidden_flag_with_value_rejected():
 
 # --- parse_output ---
 
-SAMPLE_OPEN = '''<?xml version="1.0"?>
+SAMPLE_OPEN = """<?xml version="1.0"?>
 <nmaprun>
   <host>
     <status state="up"/>
@@ -79,7 +85,7 @@ SAMPLE_OPEN = '''<?xml version="1.0"?>
   <runstats>
     <finished exit="success" time="1500"/>
   </runstats>
-</nmaprun>'''
+</nmaprun>"""
 
 
 def test_parse_open_and_closed():
@@ -107,11 +113,11 @@ def test_parse_no_ports_returns_empty():
 
 
 def test_parse_skips_invalid_portid():
-    xml = '''<nmaprun><host><address addr="1.2.3.4"/><ports>
+    xml = """<nmaprun><host><address addr="1.2.3.4"/><ports>
       <port protocol="tcp" portid="abc"><state state="open"/></port>
       <port protocol="tcp" portid="0"><state state="open"/></port>
       <port protocol="tcp" portid="80"><state state="open"/></port>
-    </ports></host><runstats><finished exit="success" time="1500"/></runstats></nmaprun>'''
+    </ports></host><runstats><finished exit="success" time="1500"/></runstats></nmaprun>"""
     findings = parse_output(xml, "t.test")
     assert len(findings) == 1
     assert findings[0].port == 80
@@ -127,7 +133,7 @@ def test_parse_filters_to_open():
 
 # --- M6-05: partial scans rejected ---
 
-SAMPLE_WITH_RUNSTATS_OK = '''<?xml version="1.0"?>
+SAMPLE_WITH_RUNSTATS_OK = """<?xml version="1.0"?>
 <nmaprun>
   <host>
     <address addr="1.1.1.1" addrtype="ipv4"/>
@@ -138,7 +144,7 @@ SAMPLE_WITH_RUNSTATS_OK = '''<?xml version="1.0"?>
   <runstats>
     <finished exit="success" time="100"/>
   </runstats>
-</nmaprun>'''
+</nmaprun>"""
 
 
 def test_m6p05_successful_scan_accepted():
@@ -149,37 +155,37 @@ def test_m6p05_successful_scan_accepted():
 
 def test_partial_scan_without_runstats_preserves_observation():
     """Observations survive but the result status separately marks partial."""
-    xml = '''<?xml version="1.0"?>
+    xml = """<?xml version="1.0"?>
     <nmaprun>
       <host>
         <address addr="1.1.1.1"/>
         <ports><port protocol="tcp" portid="80"><state state="open"/></port></ports>
       </host>
-    </nmaprun>'''
+    </nmaprun>"""
     findings = parse_output(xml, "probe.test")
     assert len(findings) == 1
     assert findings[0].port == 80
 
 
 def test_failed_scan_preserves_observation_for_explicit_failed_result():
-    xml = '''<?xml version="1.0"?>
+    xml = """<?xml version="1.0"?>
     <nmaprun>
       <host>
         <address addr="1.1.1.1"/>
         <ports><port protocol="tcp" portid="80"><state state="open"/></port></ports>
       </host>
       <runstats><finished exit="error" time="100"/></runstats>
-    </nmaprun>'''
+    </nmaprun>"""
     findings = parse_output(xml, "probe.test")
     assert len(findings) == 1
     assert findings[0].port == 80
 
 
 def test_truncated_xml_preserves_only_complete_host_observations():
-    xml = '''<nmaprun><host><address addr="1.1.1.1"/><ports>
+    xml = """<nmaprun><host><address addr="1.1.1.1"/><ports>
       <port protocol="tcp" portid="443"><state state="open"/></port>
     </ports></host><host><address addr="1.1.1.1"/><ports>
-      <port protocol="tcp" portid="8443"><state state="open"/>'''
+      <port protocol="tcp" portid="8443"><state state="open"/>"""
     findings = parse_output(xml, "probe.test")
     assert len(findings) == 1
     assert findings[0].port == 443

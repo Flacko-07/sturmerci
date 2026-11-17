@@ -13,6 +13,7 @@ nftables and veths per-run.
 The lock is held by ``flock`` on a file, so it is released automatically
 on process exit or crash -- no stale-lock cleanup is required.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -95,14 +96,10 @@ def run_lock(lock_path: Path = DEFAULT_LOCK_PATH) -> Iterator[None]:
             ) from e2
     except OSError as e:
         # Any other error (ENOSPC, EROFS, etc.) — surface it.
-        raise LockHeldError(
-            f"cannot open lock file {lock_path}: {e}"
-        ) from e
+        raise LockHeldError(f"cannot open lock file {lock_path}: {e}") from e
 
     if fd is None:
-        raise LockHeldError(
-            f"internal error: lock file {lock_path} was not opened"
-        )
+        raise LockHeldError(f"internal error: lock file {lock_path} was not opened")
 
     # (v3 hardening) Verify the opened fd is a regular file. O_NOFOLLOW
     # rules out symlinks, but a pre-created FIFO or device would still
@@ -112,9 +109,7 @@ def run_lock(lock_path: Path = DEFAULT_LOCK_PATH) -> Iterator[None]:
         st = os.fstat(fd)
     except OSError as e:
         os.close(fd)
-        raise LockHeldError(
-            f"fstat failed on lock fd: {e}"
-        ) from e
+        raise LockHeldError(f"fstat failed on lock fd: {e}") from e
     if not stat.S_ISREG(st.st_mode):
         os.close(fd)
         raise LockHeldError(

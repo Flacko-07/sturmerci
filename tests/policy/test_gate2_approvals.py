@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 2: approval lifecycle + per-request gatekeeper."""
+
 from datetime import datetime, timedelta, timezone
 import pytest
 
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.approval.gatekeeper import (
-    RequestContext, check_request,
+    RequestContext,
+    check_request,
 )
 
 from sentinel.storage.db import Database
@@ -81,7 +85,8 @@ def test_issue_and_get(tmp_path):
 
 def test_check_passes_when_everything_matches(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx())
     assert d.allowed, d.reason
     s.close()
@@ -89,9 +94,11 @@ def test_check_passes_when_everything_matches(tmp_path):
 
 # --- G2-T01: policy/scope drift ---
 
+
 def test_policy_hash_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(policy_snapshot_hash="changed"))
     assert not d.allowed and "policy" in d.reason
     s.close()
@@ -99,7 +106,8 @@ def test_policy_hash_drift_denied(tmp_path):
 
 def test_scope_lock_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(scope_lock_hash="changed"))
     assert not d.allowed and "scope" in d.reason
     s.close()
@@ -107,9 +115,11 @@ def test_scope_lock_drift_denied(tmp_path):
 
 # --- G2-T02: tool/manifest/engagement drift ---
 
+
 def test_target_set_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     new_hash = target_asset_ids_hash(["aa_1", "aa_2", "aa_3"])
     d = check_request(s, rec.approval_id, _ctx(target_asset_ids_hash=new_hash))
     assert not d.allowed and "target set" in d.reason
@@ -118,7 +128,8 @@ def test_target_set_drift_denied(tmp_path):
 
 def test_tool_executable_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(tool_executable_sha256="new"))
     assert not d.allowed and "tool executable" in d.reason
     s.close()
@@ -126,7 +137,8 @@ def test_tool_executable_drift_denied(tmp_path):
 
 def test_adapter_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(adapter_code_sha256="new"))
     assert not d.allowed and "adapter" in d.reason
     s.close()
@@ -134,7 +146,8 @@ def test_adapter_drift_denied(tmp_path):
 
 def test_manifest_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(manifest_hash="new"))
     assert not d.allowed and "manifest" in d.reason
     s.close()
@@ -142,7 +155,8 @@ def test_manifest_drift_denied(tmp_path):
 
 def test_engagement_state_drift_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(engagement_state="paused"))
     assert not d.allowed and "engagement" in d.reason
     s.close()
@@ -150,10 +164,12 @@ def test_engagement_state_drift_denied(tmp_path):
 
 # --- G2-T04: expiry + revocation ---
 
+
 def test_expired_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
     past = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
-    rec = _record(expires_at_utc=past); s.issue(rec)
+    rec = _record(expires_at_utc=past)
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx())
     assert not d.allowed and "expired" in d.reason
     s.close()
@@ -161,7 +177,8 @@ def test_expired_denied(tmp_path):
 
 def test_revoked_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     s.revoke(rec.approval_id)
     d = check_request(s, rec.approval_id, _ctx())
     assert not d.allowed and "revoked" in d.reason
@@ -170,9 +187,11 @@ def test_revoked_denied(tmp_path):
 
 # --- G2-T02 extras: port/protocol/method ---
 
+
 def test_port_not_allowed(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(port=22))
     assert not d.allowed and "port" in d.reason
     s.close()
@@ -180,7 +199,8 @@ def test_port_not_allowed(tmp_path):
 
 def test_protocol_not_allowed(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(protocol="http"))
     assert not d.allowed and "protocol" in d.reason
     s.close()
@@ -188,7 +208,8 @@ def test_protocol_not_allowed(tmp_path):
 
 def test_method_not_allowed(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(http_method="DELETE"))
     assert not d.allowed and "method" in d.reason
     s.close()
@@ -196,12 +217,15 @@ def test_method_not_allowed(tmp_path):
 
 # --- G2-T03: candidate cannot be consumed by prior approval ---
 
+
 def test_target_asset_not_in_approved_set_denied(tmp_path):
     s = ApprovalStore(tmp_path / "a.db")
-    rec = _record(); s.issue(rec)
+    rec = _record()
+    s.issue(rec)
     d = check_request(s, rec.approval_id, _ctx(target_asset_id="aa_other"))
     assert not d.allowed and "not in approved set" in d.reason
     s.close()
+
 
 @pytest.fixture(autouse=True)
 def _seed_engagement(tmp_path):
@@ -232,12 +256,17 @@ def test_all_approval_record_fields_round_trip():
     """
     import dataclasses
     from sentinel.approval.store import ApprovalRecord, _COLUMNS
+
     fields = {f.name for f in dataclasses.fields(ApprovalRecord)}
     # Fields serialized as JSON get a "_json" suffix in the column name
     json_pairs = {
-        "allowed_http_methods", "allowed_protocols", "allowed_ports",
-        "canonical_hostnames", "target_asset_ids",
-        "approved_infrastructure_endpoints", "allowed_path_prefixes",
+        "allowed_http_methods",
+        "allowed_protocols",
+        "allowed_ports",
+        "canonical_hostnames",
+        "target_asset_ids",
+        "approved_infrastructure_endpoints",
+        "allowed_path_prefixes",
         "profile_params",
     }
     for field in fields:

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Capability metadata registry tests; execution remains manifest-gated."""
+
 import socket
 
 from sentinel.runner.registry import (
@@ -13,7 +14,9 @@ from sentinel.runner import registry as _reg
 
 def test_network_adapter_metadata_registers_without_test_artifacts():
     m = AdapterManifest(
-        name="test_httpx_metadata", execution_class=2, network_access=True,
+        name="test_httpx_metadata",
+        execution_class=2,
+        network_access=True,
         enabled=False,
     )
     register(m)
@@ -26,9 +29,12 @@ def test_network_adapter_metadata_registers_without_test_artifacts():
 
 # --- Invariants across the whole suite ---
 
+
 def test_local_adapter_metadata_registers():
     m = AdapterManifest(
-        name="test_local_always_ok", execution_class=0, network_access=False,
+        name="test_local_always_ok",
+        execution_class=0,
+        network_access=False,
         enabled=False,
     )
     register(m)
@@ -45,12 +51,14 @@ def test_no_network_capable_adapters_left_behind():
 
 # --- Socket policy test ---
 
+
 def test_no_external_sockets_open():
     """Verify no external TCP sockets are active in this process.
 
     Loopback (127.0.0.0/8, ::1) is permitted — that is Ollama.
     Anything else is unexpected in this offline test process.
     """
+
     def is_loopback(addr):
         if not addr:
             return True
@@ -67,6 +75,7 @@ def test_no_external_sockets_open():
         return False
 
     import psutil
+
     proc = psutil.Process()
     offenders = []
     for c in proc.net_connections(kind="inet"):

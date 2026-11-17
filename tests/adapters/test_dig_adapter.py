@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """dig adapter integration test — mocks run_in_sandbox."""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,7 +12,9 @@ import pytest
 
 from sentinel.engagement.store import EngagementStore
 from sentinel.adapters.dig import (
-    run_dig, parse_output, DigAdapterError,
+    run_dig,
+    parse_output,
+    DigAdapterError,
 )
 from sentinel.runner.sandbox_runner import SandboxResult
 from sentinel.storage.db import Database
@@ -46,8 +49,11 @@ def test_run_dig_mocked_happy_path(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="dig-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="dig-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
@@ -57,27 +63,37 @@ def test_run_dig_mocked_happy_path(tmp_path):
     # means the test doesn't need the real `dig` binary installed.
     fake_binary = "/bin/true"
     h = hashlib.sha256(Path(fake_binary).read_bytes()).hexdigest()
-    ManifestStore(db).register(ToolManifest(
-        tool_name="dig", version="9.18.39",
-        executable_path=fake_binary, executable_sha256=h,
-        execution_class=2, network_access=True,
-        allowed_profiles=("dns_lookup",),
-        prohibited=("trace_mode", "batch_mode", "tcp_mode"),
-        limits={"max_runtime_seconds": 60, "max_output_megabytes": 5},
-        output_format="text",
-    ), actor="test")
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="dig",
+            version="9.18.39",
+            executable_path=fake_binary,
+            executable_sha256=h,
+            execution_class=2,
+            network_access=True,
+            allowed_profiles=("dns_lookup",),
+            prohibited=("trace_mode", "batch_mode", "tcp_mode"),
+            limits={"max_runtime_seconds": 60, "max_output_megabytes": 5},
+            output_format="text",
+        ),
+        actor="test",
+    )
 
     fake_sandbox = SandboxResult(
-        stdout=FAKE_DIG_OUTPUT, stderr="", exit_code=0,
-        duration_seconds=0.05, namespace_name="sentinel-run-test",
-        resolved_ip="1.1.1.1", audit_event_seq=1,
+        stdout=FAKE_DIG_OUTPUT,
+        stderr="",
+        exit_code=0,
+        duration_seconds=0.05,
+        namespace_name="sentinel-run-test",
+        resolved_ip="1.1.1.1",
+        audit_event_seq=1,
         used_providers=("1.1.1.1",),
         resolved_ips=("1.1.1.1",),
     )
-    with patch("sentinel.adapters.dig.run_in_sandbox",
-               return_value=fake_sandbox):
+    with patch("sentinel.adapters.dig.run_in_sandbox", return_value=fake_sandbox):
         result = run_dig(
-            db=db, engagement_id=eng.id,
+            db=db,
+            engagement_id=eng.id,
             approval_id="appr_test",
             target_domain="example.com",
             resolver_ip="1.1.1.1",
@@ -92,9 +108,10 @@ def test_refuses_non_ip_resolver():
     with pytest.raises(DigAdapterError, match="IP literal"):
         run_dig(
             db="/tmp/nonexistent.sqlite3",
-            engagement_id="e", approval_id="a",
+            engagement_id="e",
+            approval_id="a",
             target_domain="example.com",
-            resolver_ip="dns.google",       # hostname, not IP
+            resolver_ip="dns.google",  # hostname, not IP
             engagements_root=Path("/tmp"),
         )
 
@@ -103,7 +120,8 @@ def test_refuses_forbidden_record_type():
     with pytest.raises(DigAdapterError, match="record_type"):
         run_dig(
             db="/tmp/nonexistent.sqlite3",
-            engagement_id="e", approval_id="a",
+            engagement_id="e",
+            approval_id="a",
             target_domain="example.com",
             resolver_ip="1.1.1.1",
             record_type="ANY",

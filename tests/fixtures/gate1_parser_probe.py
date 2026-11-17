@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 1 probe: verify canonicalizer produces correct normalized hostname."""
+
 import sys
 
 from sentinel.scope.canonicalizer import canonicalize_url, CanonicalizationError
 
 CASES = [
     ("https://In-Scope.Example@evil.test./a/../b?x=1", "evil.test"),
-    ("https://example.com@evil.test/",                  "evil.test"),
-    ("https://2130706433/",                             "127.0.0.1"),
-    ("https://example.com./path",                       "example.com"),
-    ("https://example.com:443/",                        "example.com"),
-    ("https://0x7f.0.0.1/",                             "127.0.0.1"),
-    ("https://example.com.evil.test/",                  "example.com.evil.test"),
+    ("https://example.com@evil.test/", "evil.test"),
+    ("https://2130706433/", "127.0.0.1"),
+    ("https://example.com./path", "example.com"),
+    ("https://example.com:443/", "example.com"),
+    ("https://0x7f.0.0.1/", "127.0.0.1"),
+    ("https://example.com.evil.test/", "example.com.evil.test"),
 ]
 
 failures = []

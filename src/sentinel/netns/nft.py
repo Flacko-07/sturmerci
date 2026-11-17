@@ -16,6 +16,7 @@ leaves if a rule explicitly permits it.
 All subprocess calls use ``shell=False`` with argument arrays. No user
 input is ever interpolated into a shell string.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -36,12 +37,12 @@ INPUT_CHAIN = "input_run"
 DENIED_RANGES = (
     "127.0.0.0/8",
     "10.0.0.0/8",
-    "172.16.0.0/12",   # covers 172.17/16, 172.18.48.0/20, 172.19/16, 172.20/16
+    "172.16.0.0/12",  # covers 172.17/16, 172.18.48.0/20, 172.19/16, 172.20/16
     "192.168.0.0/16",
     "169.254.0.0/16",  # link-local, cloud metadata
-    "100.64.0.0/10",   # CGNAT
-    "224.0.0.0/4",     # multicast
-    "240.0.0.0/4",     # reserved
+    "100.64.0.0/10",  # CGNAT
+    "224.0.0.0/4",  # multicast
+    "240.0.0.0/4",  # reserved
     "0.0.0.0/8",
 )
 
@@ -141,9 +142,7 @@ def remove() -> None:
     try:
         data = json.loads(out.stdout)
     except json.JSONDecodeError:
-        raise NftError(
-            f"refusing to delete table {TABLE}: cannot parse table JSON"
-        )
+        raise NftError(f"refusing to delete table {TABLE}: cannot parse table JSON")
     chains = set()
     for entry in data.get("nftables", []):
         chain = entry.get("chain")
@@ -202,8 +201,7 @@ def add_approved(
 
     if protocol not in ("tcp", "udp"):
         raise ValueError(
-            f"approved destination protocol must be tcp or udp, "
-            f"got {protocol!r}"
+            f"approved destination protocol must be tcp or udp, got {protocol!r}"
         )
     rule = ["insert" if insert else "add", "rule", "inet", TABLE, chain]
     if saddr is not None:
@@ -267,32 +265,86 @@ def add_catchall_deny(veth: str) -> None:
     Must be added AFTER all allow and deny rules.
     """
     # FORWARD: from and to the child
-    _nft("add", "rule", "inet", TABLE, CHAIN,
-         "iifname", veth, "counter", "drop",
-         "comment", _quote_comment("deny-out"))
-    _nft("add", "rule", "inet", TABLE, CHAIN,
-         "oifname", veth, "counter", "drop",
-         "comment", _quote_comment("deny-in"))
+    _nft(
+        "add",
+        "rule",
+        "inet",
+        TABLE,
+        CHAIN,
+        "iifname",
+        veth,
+        "counter",
+        "drop",
+        "comment",
+        _quote_comment("deny-out"),
+    )
+    _nft(
+        "add",
+        "rule",
+        "inet",
+        TABLE,
+        CHAIN,
+        "oifname",
+        veth,
+        "counter",
+        "drop",
+        "comment",
+        _quote_comment("deny-in"),
+    )
     # INPUT: packets from the child destined for local main-ns addresses.
     # Match on ip saddr, not iifname, because local delivery via "dev lo"
     # can cause the kernel to rewrite the effective iifname to "lo",
     # silently bypassing an iifname rule. The source IP (10.99.0.2) is
     # stable per run and does not depend on routing behaviour.
-    _nft("add", "rule", "inet", TABLE, INPUT_CHAIN,
-         "ip", "saddr", "10.99.0.2/32",
-         "counter", "drop",
-         "comment", _quote_comment("deny-out-in"))
+    _nft(
+        "add",
+        "rule",
+        "inet",
+        TABLE,
+        INPUT_CHAIN,
+        "ip",
+        "saddr",
+        "10.99.0.2/32",
+        "counter",
+        "drop",
+        "comment",
+        _quote_comment("deny-out-in"),
+    )
     # IPv6: block all v6 traffic from the run veth. The namespace only
     # has v4 addresses, but a future change could add a v6 default route.
     # The drop is explicit so tests can assert on it.
-    _nft("add", "rule", "inet", TABLE, CHAIN,
-         "iifname", veth, "meta", "nfproto", "ipv6",
-         "counter", "drop",
-         "comment", _quote_comment("deny-out-v6"))
-    _nft("add", "rule", "inet", TABLE, INPUT_CHAIN,
-         "iifname", veth, "meta", "nfproto", "ipv6",
-         "counter", "drop",
-         "comment", _quote_comment("deny-in-v6"))
+    _nft(
+        "add",
+        "rule",
+        "inet",
+        TABLE,
+        CHAIN,
+        "iifname",
+        veth,
+        "meta",
+        "nfproto",
+        "ipv6",
+        "counter",
+        "drop",
+        "comment",
+        _quote_comment("deny-out-v6"),
+    )
+    _nft(
+        "add",
+        "rule",
+        "inet",
+        TABLE,
+        INPUT_CHAIN,
+        "iifname",
+        veth,
+        "meta",
+        "nfproto",
+        "ipv6",
+        "counter",
+        "drop",
+        "comment",
+        _quote_comment("deny-in-v6"),
+    )
 
 
 def counters() -> dict[str, int]:
@@ -320,6 +372,7 @@ def counters() -> dict[str, int]:
                     break
             result[comment] = result.get(comment, 0) + packets
     return result
+
 
 def chain_rules() -> str:
     """Return the raw ``nft list chain`` output. Debug aid, not for tests."""

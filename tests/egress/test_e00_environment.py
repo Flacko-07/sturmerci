@@ -6,6 +6,7 @@ design assumes. Runs under root in CI; some checks are unprivileged.
 
 See docs/egress-test-matrix.md §Local environment probes.
 """
+
 from __future__ import annotations
 
 import os
@@ -21,7 +22,9 @@ def test_e00a_unshare_isolates():
         pytest.skip("requires root")
     r = subprocess.run(
         ["unshare", "-n", "ping", "-c", "1", "-W", "1", "1.1.1.1"],
-        capture_output=True, text=True, timeout=10,
+        capture_output=True,
+        text=True,
+        timeout=10,
     )
     assert r.returncode != 0, (
         f"unshare -n should isolate network, but ping succeeded: "
@@ -35,7 +38,9 @@ def test_e00b_docker_nft_tables():
         pytest.skip("requires root")
     r = subprocess.run(
         ["nft", "list", "tables"],
-        capture_output=True, text=True, timeout=5,
+        capture_output=True,
+        text=True,
+        timeout=5,
     )
     assert r.returncode == 0
     count = sum(1 for line in r.stdout.splitlines() if line.startswith("table ip"))

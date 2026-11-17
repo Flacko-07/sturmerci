@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Engagement lifecycle and directory creation."""
+
 import os
 import pytest
 
@@ -27,8 +28,11 @@ def test_allowed_transitions():
 def test_create_and_get(tmp_path):
     db, store = _mk(tmp_path)
     eng = store.create(
-        platform="hackerone", program_name="prog", policy_url="https://x",
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="hackerone",
+        program_name="prog",
+        policy_url="https://x",
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     assert eng.state == "draft"
     assert eng.id.startswith("eng_")
@@ -40,8 +44,11 @@ def test_create_and_get(tmp_path):
 def test_directories_created_and_restricted(tmp_path):
     db, store = _mk(tmp_path)
     eng = store.create(
-        platform="lab", program_name="lab", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="lab",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     root = tmp_path / "engagements" / eng.id
     for sub in ("artifacts", "artifacts_raw", "findings", "reports", "logs"):
@@ -53,8 +60,11 @@ def test_directories_created_and_restricted(tmp_path):
 def test_full_lifecycle(tmp_path):
     db, store = _mk(tmp_path)
     eng = store.create(
-        platform="hackerone", program_name="p", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="hackerone",
+        program_name="p",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     for state in ("scope_review", "active", "paused", "active", "closed"):
         eng = store.transition(eng.id, state, actor="op")
@@ -66,8 +76,11 @@ def test_full_lifecycle(tmp_path):
 def test_illegal_transition_raises(tmp_path):
     db, store = _mk(tmp_path)
     eng = store.create(
-        platform="hackerone", program_name="p", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="hackerone",
+        program_name="p",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     with pytest.raises(LifecycleError):
         store.transition(eng.id, "active", actor="op")  # must go via scope_review
@@ -77,4 +90,5 @@ def test_illegal_transition_raises(tmp_path):
 def test_unsafe_engagement_id_rejected(tmp_path):
     with pytest.raises(ValueError):
         from sentinel.paths import ensure_engagement_dirs
+
         ensure_engagement_dirs(tmp_path, "eng_../../etc")

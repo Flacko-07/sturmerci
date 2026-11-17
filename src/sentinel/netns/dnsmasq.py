@@ -11,6 +11,7 @@ process. ``namespace.run_namespace()`` enters this context after
 namespace creation and exits before namespace deletion, so the process
 is cleaned up even if the namespace is destroyed unexpectedly.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -120,7 +121,10 @@ class DnsmasqRunner:
             raise DnsmasqError("dnsmasq already started")
         self._write_config()
         argv = [
-            "ip", "netns", "exec", self.ns_name,
+            "ip",
+            "netns",
+            "exec",
+            self.ns_name,
             _dnsmasq_binary(),
             "--no-daemon",
             f"--conf-file={self.conf_path}",

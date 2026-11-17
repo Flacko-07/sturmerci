@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Consolidated SQLite database. One connection, one set of pragmas,
 migration-driven schema, transaction support."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -21,12 +22,14 @@ class Database:
         # parent dir and are protected by the parent's mode.
         try:
             import os as _os
+
             _os.chmod(self.path.parent, 0o700)
         except OSError:
             pass
         self._conn = sqlite3.connect(str(self.path), isolation_level=None)
         try:
             import os as _os
+
             _os.chmod(self.path, 0o600)
         except OSError:
             pass
@@ -38,6 +41,7 @@ class Database:
         self._in_tx = False
         if auto_migrate:
             from .migrate import migrate
+
             migrate(self)
 
     @property

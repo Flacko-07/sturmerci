@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """FTS5 knowledge base tests. No root needed."""
+
 from __future__ import annotations
 
 import pytest
 
 from sentinel.knowledge.fts import search, _sanitize_query
 from sentinel.knowledge.ingest import (
-    parse_document, ingest_file, ingest_directory, IngestError,
+    parse_document,
+    ingest_file,
+    ingest_directory,
+    IngestError,
 )
 from sentinel.storage.db import Database
 from sentinel.knowledge.provenance import review_revision, KnowledgeReviewError
@@ -35,27 +39,48 @@ def db(tmp_path):
 @pytest.fixture
 def seeded_db(db, tmp_path):
     docs = [
-        ("SQL Injection Guide", "web_security", "https://test/sqli",
-         "SQL injection lets an attacker alter a database query via "
-         "unsafe parameter interpolation. Test by injecting quote "
-         "characters and observing error responses."),
-        ("Broken Object Level Authorization", "api_security",
-         "https://test/bola",
-         "BOLA occurs when API endpoints accept object identifiers "
-         "without verifying the caller is authorized to access them."),
-        ("Server Side Request Forgery", "web_security", "https://test/ssrf",
-         "SSRF lets an attacker control where the server fetches a URL. "
-         "Test by supplying a callback URL and observing the request "
-         "from the target."),
+        (
+            "SQL Injection Guide",
+            "web_security",
+            "https://test/sqli",
+            "SQL injection lets an attacker alter a database query via "
+            "unsafe parameter interpolation. Test by injecting quote "
+            "characters and observing error responses.",
+        ),
+        (
+            "Broken Object Level Authorization",
+            "api_security",
+            "https://test/bola",
+            "BOLA occurs when API endpoints accept object identifiers "
+            "without verifying the caller is authorized to access them.",
+        ),
+        (
+            "Server Side Request Forgery",
+            "web_security",
+            "https://test/ssrf",
+            "SSRF lets an attacker control where the server fetches a URL. "
+            "Test by supplying a callback URL and observing the request "
+            "from the target.",
+        ),
     ]
     for title, topic, url, body in docs:
         path = tmp_path / f"doc_{url.rsplit('/', 1)[1]}.md"
-        path.write_text(DOC_TEMPLATE.format(
-            title=title, topic=topic, url=url, body=body,
-        ))
+        path.write_text(
+            DOC_TEMPLATE.format(
+                title=title,
+                topic=topic,
+                url=url,
+                body=body,
+            )
+        )
         entry_id = ingest_file(db, path, ingested_by="curator")
-        review_revision(db, entry_id, reviewer="reviewer",
-                        decision="approved", rationale="fixture reviewed")
+        review_revision(
+            db,
+            entry_id,
+            reviewer="reviewer",
+            decision="approved",
+            rationale="fixture reviewed",
+        )
     return db
 
 
@@ -65,9 +90,7 @@ def test_sanitize_empty_returns_empty():
 
 
 def test_sanitize_removes_stopwords():
-    assert _sanitize_query("how to test for SQL injection") == (
-        '"sql" AND "injection"'
-    )
+    assert _sanitize_query("how to test for SQL injection") == ('"sql" AND "injection"')
 
 
 def test_sanitize_preserves_cve():
@@ -82,10 +105,9 @@ def test_sanitize_quotes_fts5_operator_tokens():
     # FTS5 operators in user input must be treated as literals.
     # 'a'/'b' single-char are dropped, 'or' is stopword -> empty.
     # Use tokens that survive the filter to prove the property.
-    assert _sanitize_query("sql NOT injection") == (
-        '"sql" AND "not" AND "injection"'
-    )
+    assert _sanitize_query("sql NOT injection") == ('"sql" AND "not" AND "injection"')
     assert _sanitize_query("ssrf and curl") == '"ssrf" AND "curl"'
+
 
 def test_sanitize_all_stopwords_falls_back():
     assert _sanitize_query("the and") == ""
@@ -93,10 +115,14 @@ def test_sanitize_all_stopwords_falls_back():
 
 def test_parse_document_valid(tmp_path):
     path = tmp_path / "x.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="Test Title", topic="test", url="https://x/y",
-        body="Body content here.",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Test Title",
+            topic="test",
+            url="https://x/y",
+            body="Body content here.",
+        )
+    )
     meta, body = parse_document(path.read_text())
     assert meta["title"] == "Test Title"
     assert meta["topic"] == "test"
@@ -126,10 +152,14 @@ def test_parse_document_empty_body():
 
 def test_ingest_writes_entries_and_fts(tmp_path, db):
     path = tmp_path / "doc.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="SQL Injection", topic="web_security",
-        url="https://test/sqli", body="SQL injection content here.",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="SQL Injection",
+            topic="web_security",
+            url="https://test/sqli",
+            body="SQL injection content here.",
+        )
+    )
     entry_id = ingest_file(db, path)
     assert entry_id.startswith("kb_")
     entry = db.connection.execute(
@@ -150,34 +180,59 @@ def test_ingest_writes_entries_and_fts(tmp_path, db):
 
 def test_ingest_is_idempotent(tmp_path, db):
     path = tmp_path / "doc.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="X", topic="t", url="https://u/x", body="body",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="X",
+            topic="t",
+            url="https://u/x",
+            body="body",
+        )
+    )
     id1 = ingest_file(db, path)
     id2 = ingest_file(db, path)
     assert id1 == id2
-    count = db.connection.execute(
-        "SELECT COUNT(*) FROM knowledge_entries"
-    ).fetchone()[0]
+    count = db.connection.execute("SELECT COUNT(*) FROM knowledge_entries").fetchone()[
+        0
+    ]
     assert count == 1
 
 
 def test_ingest_updates_when_content_changes(tmp_path, db):
     path = tmp_path / "doc.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="X", topic="t", url="https://u/x", body="original body",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="X",
+            topic="t",
+            url="https://u/x",
+            body="original body",
+        )
+    )
     entry_id = ingest_file(db, path)
-    review_revision(db, entry_id, reviewer="reviewer",
-                    decision="approved", rationale="initial review")
-    path.write_text(DOC_TEMPLATE.format(
-        title="X", topic="t", url="https://u/x", body="updated body",
-    ))
+    review_revision(
+        db,
+        entry_id,
+        reviewer="reviewer",
+        decision="approved",
+        rationale="initial review",
+    )
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="X",
+            topic="t",
+            url="https://u/x",
+            body="updated body",
+        )
+    )
     ingest_file(db, path)
     assert search(db, "updated") == []
     assert len(search(db, "original")) == 0
-    review_revision(db, entry_id, reviewer="reviewer",
-                    decision="approved", rationale="updated revision reviewed")
+    review_revision(
+        db,
+        entry_id,
+        reviewer="reviewer",
+        decision="approved",
+        rationale="updated revision reviewed",
+    )
     assert len(search(db, "updated")) == 1
 
 
@@ -220,6 +275,7 @@ def test_search_limit(seeded_db):
     limited = search(seeded_db, "attacker", limit=1)
     assert len(limited) == 1
 
+
 def test_search_empty_query_returns_empty(seeded_db):
     assert search(seeded_db, "") == []
     assert search(seeded_db, "   ") == []
@@ -233,19 +289,28 @@ def test_search_returns_snippet(seeded_db):
 
 def test_ingest_directory_batch(tmp_path, db):
     for i in range(3):
-        (tmp_path / f"doc{i}.md").write_text(DOC_TEMPLATE.format(
-            title=f"Doc {i}", topic="test",
-            url=f"https://test/doc{i}", body=f"body number {i}",
-        ))
+        (tmp_path / f"doc{i}.md").write_text(
+            DOC_TEMPLATE.format(
+                title=f"Doc {i}",
+                topic="test",
+                url=f"https://test/doc{i}",
+                body=f"body number {i}",
+            )
+        )
     processed, errors = ingest_directory(db, tmp_path)
     assert processed == 3
     assert errors == 0
 
 
 def test_ingest_directory_skips_bad(tmp_path, db):
-    (tmp_path / "good.md").write_text(DOC_TEMPLATE.format(
-        title="X", topic="t", url="https://test/x", body="body",
-    ))
+    (tmp_path / "good.md").write_text(
+        DOC_TEMPLATE.format(
+            title="X",
+            topic="t",
+            url="https://test/x",
+            body="body",
+        )
+    )
     (tmp_path / "bad.md").write_text("not a valid document")
     processed, errors = ingest_directory(db, tmp_path)
     assert processed == 1
@@ -254,10 +319,14 @@ def test_ingest_directory_skips_bad(tmp_path, db):
 
 def test_draft_documents_not_searchable(tmp_path, db):
     """M8-P0-C: drafts must not appear in search results."""
-    (tmp_path / "draft.md").write_text(DOC_TEMPLATE.format(
-        title="Draft X", topic="t", url="https://test/draft",
-        body="draft only content marked confidential",
-    ).replace("review_status: reviewed", "review_status: draft"))
+    (tmp_path / "draft.md").write_text(
+        DOC_TEMPLATE.format(
+            title="Draft X",
+            topic="t",
+            url="https://test/draft",
+            body="draft only content marked confidential",
+        ).replace("review_status: reviewed", "review_status: draft")
+    )
     ingest_file(db, tmp_path / "draft.md")
     # Row exists in DB
     entry = db.connection.execute(
@@ -271,61 +340,79 @@ def test_draft_documents_not_searchable(tmp_path, db):
 
 def test_reviewed_documents_are_searchable(tmp_path, db):
     """Sanity: reviewed docs still appear (filter isn't over-broad)."""
-    (tmp_path / "ok.md").write_text(DOC_TEMPLATE.format(
-        title="Reviewed X", topic="t", url="https://test/ok",
-        body="reviewed content",
-    ))
+    (tmp_path / "ok.md").write_text(
+        DOC_TEMPLATE.format(
+            title="Reviewed X",
+            topic="t",
+            url="https://test/ok",
+            body="reviewed content",
+        )
+    )
     ingest_file(db, tmp_path / "ok.md")
-    entry_id = db.connection.execute(
-        "SELECT id FROM knowledge_entries"
-    ).fetchone()[0]
-    review_revision(db, entry_id, reviewer="reviewer",
-                    decision="approved", rationale="reviewed fixture")
+    entry_id = db.connection.execute("SELECT id FROM knowledge_entries").fetchone()[0]
+    review_revision(
+        db,
+        entry_id,
+        reviewer="reviewer",
+        decision="approved",
+        rationale="reviewed fixture",
+    )
     hits = search(db, "reviewed")
     assert len(hits) == 1
 
 
 # --- M8-1: metadata-only changes are re-ingested ---
 
+
 def test_m8p01_metadata_change_updates_row(tmp_path, db):
     """Changing only metadata (not body) must trigger an update."""
     path = tmp_path / "doc.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="Original Title", topic="t", url="https://test/x",
-        body="unchanged body content",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Original Title",
+            topic="t",
+            url="https://test/x",
+            body="unchanged body content",
+        )
+    )
     ingest_file(db, path)
-    orig = db.connection.execute(
-        "SELECT title FROM knowledge_entries"
-    ).fetchone()["title"]
+    orig = db.connection.execute("SELECT title FROM knowledge_entries").fetchone()[
+        "title"
+    ]
     assert orig == "Original Title"
 
     # Change only the title
-    path.write_text(DOC_TEMPLATE.format(
-        title="Updated Title", topic="t", url="https://test/x",
-        body="unchanged body content",
-    ))
-    ingest_file(db, path)
-    updated = db.connection.execute(
-        "SELECT title FROM knowledge_entries"
-    ).fetchone()["title"]
-    assert updated == "Updated Title", (
-        f"metadata update ignored: still {updated!r}"
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Updated Title",
+            topic="t",
+            url="https://test/x",
+            body="unchanged body content",
+        )
     )
+    ingest_file(db, path)
+    updated = db.connection.execute("SELECT title FROM knowledge_entries").fetchone()[
+        "title"
+    ]
+    assert updated == "Updated Title", f"metadata update ignored: still {updated!r}"
 
 
 # --- M8-2: publisher persisted ---
 
+
 def test_m8p02_publisher_persisted(tmp_path, db):
     """Publisher from frontmatter must be written to knowledge_entries."""
     path = tmp_path / "doc.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="X", topic="t", url="https://test/x", body="body",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="X",
+            topic="t",
+            url="https://test/x",
+            body="body",
+        )
+    )
     ingest_file(db, path)
-    row = db.connection.execute(
-        "SELECT publisher FROM knowledge_entries"
-    ).fetchone()
+    row = db.connection.execute("SELECT publisher FROM knowledge_entries").fetchone()
     assert row is not None
     # DOC_TEMPLATE has publisher: Test
     assert row["publisher"] == "Test"
@@ -333,32 +420,50 @@ def test_m8p02_publisher_persisted(tmp_path, db):
 
 def test_frontmatter_cannot_self_approve(tmp_path, db):
     path = tmp_path / "self-approved.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="Untrusted", topic="t", url="https://test/untrusted",
-        body="should not enter model context",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Untrusted",
+            topic="t",
+            url="https://test/untrusted",
+            body="should not enter model context",
+        )
+    )
     entry_id = ingest_file(db, path, ingested_by="operator")
     assert search(db, "model context") == []
     with pytest.raises(KnowledgeReviewError, match="differ from ingested_by"):
-        review_revision(db, entry_id, reviewer="operator",
-                        decision="approved", rationale="self approval")
+        review_revision(
+            db,
+            entry_id,
+            reviewer="operator",
+            decision="approved",
+            rationale="self approval",
+        )
     assert search(db, "model context") == []
 
 
 def test_review_is_bound_to_immutable_revision(tmp_path, db):
     path = tmp_path / "revision.md"
-    path.write_text(DOC_TEMPLATE.format(
-        title="Revision", topic="t", url="https://test/revision",
-        body="original approved content",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Revision",
+            topic="t",
+            url="https://test/revision",
+            body="original approved content",
+        )
+    )
     entry_id = ingest_file(db, path, ingested_by="curator")
-    review_revision(db, entry_id, reviewer="reviewer",
-                    decision="approved", rationale="reviewed")
+    review_revision(
+        db, entry_id, reviewer="reviewer", decision="approved", rationale="reviewed"
+    )
     assert search(db, "original approved")
-    path.write_text(DOC_TEMPLATE.format(
-        title="Revision", topic="t", url="https://test/revision",
-        body="changed unreviewed content",
-    ))
+    path.write_text(
+        DOC_TEMPLATE.format(
+            title="Revision",
+            topic="t",
+            url="https://test/revision",
+            body="changed unreviewed content",
+        )
+    )
     ingest_file(db, path, ingested_by="curator")
     assert search(db, "original approved") == []
     assert search(db, "changed unreviewed") == []
@@ -366,18 +471,27 @@ def test_review_is_bound_to_immutable_revision(tmp_path, db):
 
 # --- M8.5: recursive ingest ---
 
+
 def test_ingest_directory_recurses_into_subdirs(tmp_path, db):
     """Nested knowledge/<topic>/*.md files must be ingested."""
     (tmp_path / "web_security").mkdir()
     (tmp_path / "api_security").mkdir()
-    (tmp_path / "web_security" / "sqli.md").write_text(DOC_TEMPLATE.format(
-        title="SQL Injection", topic="web_security",
-        url="https://test/sqli", body="SQL injection content",
-    ))
-    (tmp_path / "api_security" / "bola.md").write_text(DOC_TEMPLATE.format(
-        title="BOLA", topic="api_security",
-        url="https://test/bola", body="Object level authorization content",
-    ))
+    (tmp_path / "web_security" / "sqli.md").write_text(
+        DOC_TEMPLATE.format(
+            title="SQL Injection",
+            topic="web_security",
+            url="https://test/sqli",
+            body="SQL injection content",
+        )
+    )
+    (tmp_path / "api_security" / "bola.md").write_text(
+        DOC_TEMPLATE.format(
+            title="BOLA",
+            topic="api_security",
+            url="https://test/bola",
+            body="Object level authorization content",
+        )
+    )
     processed, errors = ingest_directory(db, tmp_path)
     assert processed == 2
     assert errors == 0
@@ -389,8 +503,11 @@ def test_ingest_directory_recurses_into_subdirs(tmp_path, db):
     ).fetchall()
     for row in entry_ids:
         review_revision(
-            db, row["id"], reviewer="recursive-ingest-reviewer",
-            decision="approved", rationale="reviewed recursive fixture",
+            db,
+            row["id"],
+            reviewer="recursive-ingest-reviewer",
+            decision="approved",
+            rationale="reviewed recursive fixture",
         )
     hits = search(db, "SQL injection")
     assert len(hits) == 1

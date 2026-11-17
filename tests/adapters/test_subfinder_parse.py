@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for Subfinder parsing and validation. No root needed."""
+
 from sentinel.adapters.subfinder import (
-    parse_output, validate_result_host, SubfinderFinding,
+    parse_output,
+    validate_result_host,
 )
 
 
 # --- parse_output ---
+
 
 def test_parse_valid_json_lines():
     stdout = (
@@ -26,7 +29,7 @@ def test_parse_empty_returns_empty():
 def test_parse_skips_malformed_lines():
     stdout = (
         '{"host":"a.probe.test","input":"probe.test","source":"crtsh"}\n'
-        'not json at all\n'
+        "not json at all\n"
         '{"incomplete": "json"\n'
         '{"host":"b.probe.test","input":"probe.test","source":"crtsh"}\n'
     )
@@ -54,6 +57,7 @@ def test_parse_skips_empty_host():
 
 
 # --- validate_result_host ---
+
 
 def test_valid_subdomain():
     ok, reason = validate_result_host("mail.probe.test", "probe.test")

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Apply pending SQL migrations. Idempotent; version is the filename stem."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -17,7 +18,8 @@ def migrate(db: "Database", migrations_dir: Path | None = None) -> list[str]:
             (
                 entry
                 for entry in resources.files("sentinel.storage")
-                .joinpath("migrations").iterdir()
+                .joinpath("migrations")
+                .iterdir()
                 if entry.name.endswith(".sql")
             ),
             key=lambda entry: entry.name,

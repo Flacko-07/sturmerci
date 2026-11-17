@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Model call ledger. Gate 3 (§6.4, G3-T08)."""
+
 from __future__ import annotations
 
 from sentinel.storage.db import Database, coerce_db
 
 import json
-import sqlite3
 import uuid
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -43,7 +43,8 @@ class ModelRunStore:
         self._db, self._owns_db = coerce_db(db)
 
     def record(
-        self, *,
+        self,
+        *,
         engagement_id: str,
         model_id: str,
         prompt_template_hash: str,
@@ -96,7 +97,9 @@ class ModelRunStore:
         return rec
 
     def all(self) -> list[dict]:
-        cur = self._db.connection.execute("SELECT * FROM model_runs ORDER BY created_at_utc")
+        cur = self._db.connection.execute(
+            "SELECT * FROM model_runs ORDER BY created_at_utc"
+        )
         return [dict(zip([d[0] for d in cur.description], row)) for row in cur]
 
     def set_dropped_references(self, run_id: str, count: int) -> None:

@@ -1,15 +1,21 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for httpx adapter. No root needed."""
+
 import pytest
 
 from sentinel.adapters.httpx import (
-    build_argv, parse_output, _assert_no_forbidden_flags,
-    HttpxAdapterError, FORBIDDEN_FLAGS, ALLOWED_METHODS,
-    _validate_observation, WebEndpointObservation,
+    build_argv,
+    parse_output,
+    _assert_no_forbidden_flags,
+    HttpxAdapterError,
+    FORBIDDEN_FLAGS,
+    _validate_observation,
+    WebEndpointObservation,
 )
 
 
 # --- build_argv ---
+
 
 def test_build_argv_https_get():
     argv = build_argv("/usr/bin/httpx", "app.example.com", 443, "https", "GET")
@@ -57,6 +63,7 @@ def test_build_argv_bad_hostname():
 
 
 # --- forbidden flags ---
+
 
 @pytest.mark.parametrize("flag", FORBIDDEN_FLAGS)
 def test_forbidden_flags_rejected(flag):
@@ -113,8 +120,7 @@ def test_parse_skips_missing_url():
 
 def test_parse_handles_status_code_as_int_or_string():
     text = (
-        '{"url":"https://a.test:443","port":"443","scheme":"https",'
-        '"status-code":200}\n'
+        '{"url":"https://a.test:443","port":"443","scheme":"https","status-code":200}\n'
     )
     findings = parse_output(text)
     assert len(findings) == 1
@@ -125,9 +131,15 @@ def test_validate_observation_ok():
     obs = WebEndpointObservation(
         url="https://app.example.com:443",
         input_url="app.example.com",
-        port=443, scheme="https", status_code=200,
-        title="", webserver="", tech=(), tls_subject_cn="",
-        tls_issuer="", tls_dns_names=(),
+        port=443,
+        scheme="https",
+        status_code=200,
+        title="",
+        webserver="",
+        tech=(),
+        tls_subject_cn="",
+        tls_issuer="",
+        tls_dns_names=(),
     )
     ok, _ = _validate_observation(obs, "app.example.com", 443, "https")
     assert ok
@@ -135,10 +147,17 @@ def test_validate_observation_ok():
 
 def test_validate_observation_wrong_host():
     obs = WebEndpointObservation(
-        url="https://other.test:443", input_url="",
-        port=443, scheme="https", status_code=200,
-        title="", webserver="", tech=(), tls_subject_cn="",
-        tls_issuer="", tls_dns_names=(),
+        url="https://other.test:443",
+        input_url="",
+        port=443,
+        scheme="https",
+        status_code=200,
+        title="",
+        webserver="",
+        tech=(),
+        tls_subject_cn="",
+        tls_issuer="",
+        tls_dns_names=(),
     )
     ok, reason = _validate_observation(obs, "app.example.com", 443, "https")
     assert not ok
@@ -147,10 +166,17 @@ def test_validate_observation_wrong_host():
 
 def test_validate_observation_wrong_port():
     obs = WebEndpointObservation(
-        url="https://app.example.com:8443", input_url="",
-        port=8443, scheme="https", status_code=200,
-        title="", webserver="", tech=(), tls_subject_cn="",
-        tls_issuer="", tls_dns_names=(),
+        url="https://app.example.com:8443",
+        input_url="",
+        port=8443,
+        scheme="https",
+        status_code=200,
+        title="",
+        webserver="",
+        tech=(),
+        tls_subject_cn="",
+        tls_issuer="",
+        tls_dns_names=(),
     )
     ok, reason = _validate_observation(obs, "app.example.com", 443, "https")
     assert not ok
@@ -159,11 +185,19 @@ def test_validate_observation_wrong_port():
 
 # --- M7-02: path validation ---
 
+
 def test_m7p02_observation_path_root_accepted():
     obs = WebEndpointObservation(
-        url="https://app.example.com:443/", input_url="",
-        port=443, scheme="https", status_code=200, title="",
-        webserver="", tech=(), tls_subject_cn="", tls_issuer="",
+        url="https://app.example.com:443/",
+        input_url="",
+        port=443,
+        scheme="https",
+        status_code=200,
+        title="",
+        webserver="",
+        tech=(),
+        tls_subject_cn="",
+        tls_issuer="",
         tls_dns_names=(),
     )
     ok, _ = _validate_observation(obs, "app.example.com", 443, "https")
@@ -172,9 +206,16 @@ def test_m7p02_observation_path_root_accepted():
 
 def test_m7p02_observation_path_different_rejected():
     obs = WebEndpointObservation(
-        url="https://app.example.com:443/admin", input_url="",
-        port=443, scheme="https", status_code=200, title="",
-        webserver="", tech=(), tls_subject_cn="", tls_issuer="",
+        url="https://app.example.com:443/admin",
+        input_url="",
+        port=443,
+        scheme="https",
+        status_code=200,
+        title="",
+        webserver="",
+        tech=(),
+        tls_subject_cn="",
+        tls_issuer="",
         tls_dns_names=(),
     )
     ok, reason = _validate_observation(obs, "app.example.com", 443, "https")
@@ -184,15 +225,20 @@ def test_m7p02_observation_path_different_rejected():
 
 # --- M7-03: strict port parsing ---
 
+
 def test_m7p03_non_numeric_port_skipped():
-    line = ('{"url":"https://a.test:443","port":"not-a-number",'
-            '"scheme":"https","status_code":200}\n')
+    line = (
+        '{"url":"https://a.test:443","port":"not-a-number",'
+        '"scheme":"https","status_code":200}\n'
+    )
     assert parse_output(line) == []
 
 
 def test_m7p03_out_of_range_port_skipped():
-    line = ('{"url":"https://a.test:443","port":"999999",'
-            '"scheme":"https","status_code":200}\n')
+    line = (
+        '{"url":"https://a.test:443","port":"999999",'
+        '"scheme":"https","status_code":200}\n'
+    )
     assert parse_output(line) == []
 
 

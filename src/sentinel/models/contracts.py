@@ -4,25 +4,26 @@
 No field here can authorize scope, set authoritative severity, set finding
 lifecycle state, execute commands, or submit a report.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
-EvidenceId = Annotated[
-    str, StringConstraints(pattern=r"^ev_[a-f0-9]{16,64}$")
-]
+EvidenceId = Annotated[str, StringConstraints(pattern=r"^ev_[a-f0-9]{16,64}$")]
 
 ReferenceId = Annotated[
     str,
-    StringConstraints(pattern=(
-        r"^(CWE-[0-9]{1,5}|"
-        r"WSTG-[A-Z0-9][A-Z0-9-]{0,63}|"
-        r"API[0-9]{1,2}:20[0-9]{2}|"
-        r"MASVS-[A-Z0-9][A-Z0-9-]{0,63}|"
-        r"CVE-[0-9]{4}-[0-9]{4,})$"
-    )),
+    StringConstraints(
+        pattern=(
+            r"^(CWE-[0-9]{1,5}|"
+            r"WSTG-[A-Z0-9][A-Z0-9-]{0,63}|"
+            r"API[0-9]{1,2}:20[0-9]{2}|"
+            r"MASVS-[A-Z0-9][A-Z0-9-]{0,63}|"
+            r"CVE-[0-9]{4}-[0-9]{4,})$"
+        )
+    ),
 ]
 
 
@@ -32,8 +33,13 @@ class FindingTriageOutput(BaseModel):
     task_type: Literal["finding_triage"]
     summary: str
     candidate_category: Literal[
-        "access_control", "authentication", "injection",
-        "information_exposure", "misconfiguration", "dependency", "other",
+        "access_control",
+        "authentication",
+        "injection",
+        "information_exposure",
+        "misconfiguration",
+        "dependency",
+        "other",
     ]
     possible_references: list[ReferenceId]
     evidence_ids: list[EvidenceId]

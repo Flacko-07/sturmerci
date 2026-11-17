@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Sentinel operator CLI."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -15,11 +16,14 @@ from sentinel.paths import DEFAULT_DB, DEFAULT_ENGAGEMENTS_ROOT
 from sentinel.engagement.store import EngagementStore
 from sentinel.assets.store import AssetStore
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.tools.manifests import ManifestStore
 from sentinel.runner.sandbox_runner import (
-    _current_scope_lock_hash, _current_egress_profile_id,
+    _current_scope_lock_hash,
+    _current_egress_profile_id,
     _current_adapter_code_sha256,
 )
 from sentinel.audit.store import AuditStore
@@ -63,6 +67,7 @@ def status() -> None:
     """Show database and engagement state."""
     db = _db()
     try:
+
         def count(table: str, where: str = "") -> int:
             return db.connection.execute(
                 f"SELECT COUNT(*) FROM {table} {where}"
@@ -74,8 +79,7 @@ def status() -> None:
         now_iso = datetime.now(timezone.utc).isoformat()
         approvals_active = count(
             "approvals",
-            "WHERE revoked_at_utc IS NULL AND expires_at_utc > '"
-            + now_iso + "'",
+            "WHERE revoked_at_utc IS NULL AND expires_at_utc > '" + now_iso + "'",
         )
         manifests = count("tool_manifests")
         artifacts = count("artifacts")
@@ -83,8 +87,9 @@ def status() -> None:
         audits = count("audit_events")
 
         console.print(f"DB: {DEFAULT_DB}")
-        console.print(f"Engagements: {engagements_total} "
-                      f"(active: {engagements_active})")
+        console.print(
+            f"Engagements: {engagements_total} (active: {engagements_active})"
+        )
         console.print(f"Approved assets: {approved_assets}")
         console.print(f"Active approvals: {approvals_active}")
         console.print(f"Manifests: {manifests}")
@@ -97,6 +102,7 @@ def status() -> None:
 
 # ─── engagement commands ────────────────────────────────────────────────────
 
+
 @engagement_app.command("create")
 def engagement_create(
     program: str = typer.Option(..., "--program", help="HackerOne program handle"),
@@ -108,8 +114,11 @@ def engagement_create(
     db = _db()
     try:
         eng = EngagementStore(db).create(
-            platform=platform, program_name=program, policy_url=policy_url,
-            actor=actor, engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
+            platform=platform,
+            program_name=program,
+            policy_url=policy_url,
+            actor=actor,
+            engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
         )
         console.print(f"[green]Created[/] {eng.id} (state: {eng.state})")
         console.print(f"Next: `sentinel scope add {eng.id} --value app.example.com`")
@@ -140,8 +149,15 @@ def engagement_show(engagement_id: str = typer.Argument(...)) -> None:
         if not eng:
             console.print(f"[red]Not found[/]: {engagement_id}")
             raise typer.Exit(1)
-        for k in ("id", "state", "platform", "program_name", "policy_url",
-                  "created_at_utc", "closed_at_utc"):
+        for k in (
+            "id",
+            "state",
+            "platform",
+            "program_name",
+            "policy_url",
+            "created_at_utc",
+            "closed_at_utc",
+        ):
             v = getattr(eng, k)
             if v:
                 console.print(f"{k}: {v}")
@@ -173,6 +189,7 @@ def engagement_activate(
 
 # ─── scope commands ─────────────────────────────────────────────────────────
 
+
 @scope_app.command("add")
 def scope_add(
     engagement_id: str = typer.Argument(...),
@@ -186,8 +203,10 @@ def scope_add(
         astore = AssetStore(db)
         canonical = value.lower().rstrip(".")
         cid = astore.add_candidate(
-            engagement_id=engagement_id, raw_value=value,
-            canonical_value=canonical, asset_type=asset_type,
+            engagement_id=engagement_id,
+            raw_value=value,
+            canonical_value=canonical,
+            asset_type=asset_type,
             discovery_source="operator",
         )
         astore.promote_candidate(cid, approved_by=actor)
@@ -211,8 +230,12 @@ def scope_list(engagement_id: str = typer.Argument(...)) -> None:
             return
         table = Table("Value", "Type", "Approved by", "At")
         for r in rows:
-            table.add_row(r["canonical_value"], r["asset_type"],
-                          r["approved_by"], r["approved_at_utc"][:19])
+            table.add_row(
+                r["canonical_value"],
+                r["asset_type"],
+                r["approved_by"],
+                r["approved_at_utc"][:19],
+            )
         console.print(table)
     finally:
         db.close()
@@ -220,54 +243,91 @@ def scope_list(engagement_id: str = typer.Argument(...)) -> None:
 
 # ─── approval commands ──────────────────────────────────────────────────────
 
+
 @approval_app.command("issue")
 def approval_issue(
     engagement_id: str = typer.Argument(...),
     tool: str = typer.Option(..., "--tool", help="e.g. httpx, ffuf, sqlmap"),
     version: str = typer.Option(..., "--version"),
-    port: list[int] = typer.Option(None, "--port",
+    port: list[int] = typer.Option(
+        None,
+        "--port",
         help="Port(s) the approval authorizes. Repeat for multiple. "
-             "Required for network-capable tools."),
-    method: list[str] = typer.Option(None, "--method",
+        "Required for network-capable tools.",
+    ),
+    method: list[str] = typer.Option(
+        None,
+        "--method",
         help="HTTP method(s). Repeat for multiple. Defaults to GET for "
-             "network tools if omitted; refused if tool is not HTTP."),
-    protocol: list[str] = typer.Option(None, "--protocol",
+        "network tools if omitted; refused if tool is not HTTP.",
+    ),
+    protocol: list[str] = typer.Option(
+        None,
+        "--protocol",
         help="Protocol(s) (http/https/tcp/udp). Repeat for multiple. "
-             "Required for network tools."),
-    profile: str = typer.Option(None, "--profile",
-        help="Operation profile. Defaults to manifest.allowed_profiles[0]."),
-    provider: list[str] = typer.Option(None, "--provider",
+        "Required for network tools.",
+    ),
+    profile: str = typer.Option(
+        None,
+        "--profile",
+        help="Operation profile. Defaults to manifest.allowed_profiles[0].",
+    ),
+    provider: list[str] = typer.Option(
+        None,
+        "--provider",
         help="Infrastructure provider(s) to authorize (e.g. crt.sh). "
-             "Repeat for multiple. NOT auto-populated from the manifest: "
-             "the operator must explicitly authorize each provider."),
-    profile_param: list[str] = typer.Option(None, "--profile-param",
+        "Repeat for multiple. NOT auto-populated from the manifest: "
+        "the operator must explicitly authorize each provider.",
+    ),
+    profile_param: list[str] = typer.Option(
+        None,
+        "--profile-param",
         help="Profile parameter KEY=VALUE. Repeat for each. When provided, "
-             "the approval binds these exact values: any run whose "
-             "profile_params differ for these keys is refused. Use this "
-             "to pre-commit to a specific wordlist / template set / "
-             "technique. Empty = no param binding (backwards-compatible)."),
-    path_profile: str = typer.Option("default", "--path-profile",
+        "the approval binds these exact values: any run whose "
+        "profile_params differ for these keys is refused. Use this "
+        "to pre-commit to a specific wordlist / template set / "
+        "technique. Empty = no param binding (backwards-compatible).",
+    ),
+    path_profile: str = typer.Option(
+        "default",
+        "--path-profile",
         help="default | restricted. 'restricted' requires --path-prefix "
-             "and a proxy-enabled adapter run."),
-    path_prefix: list[str] = typer.Option(None, "--path-prefix",
-        help="Allowed URL path prefix(es) when --path-profile=restricted."),
-    policy_snapshot: str = typer.Option("", "--policy-snapshot",
+        "and a proxy-enabled adapter run.",
+    ),
+    path_prefix: list[str] = typer.Option(
+        None,
+        "--path-prefix",
+        help="Allowed URL path prefix(es) when --path-profile=restricted.",
+    ),
+    policy_snapshot: str = typer.Option(
+        "",
+        "--policy-snapshot",
         help="policy_snapshots.policy_hash for this engagement. Empty "
-             "means the approval is not policy-bound (warning issued)."),
-    intrusive: bool = typer.Option(False, "--intrusive",
+        "means the approval is not policy-bound (warning issued).",
+    ),
+    intrusive: bool = typer.Option(
+        False,
+        "--intrusive",
         help="Authorize Class 3 intrusive operations. Requires --yes "
-             "or interactive confirmation."),
-    lab: bool = typer.Option(False, "--lab",
-        help="Mark approval as lab-only (required for metasploit/exploit)."),
-    port_scanning_authorized: bool = typer.Option(False,
+        "or interactive confirmation.",
+    ),
+    lab: bool = typer.Option(
+        False,
+        "--lab",
+        help="Mark approval as lab-only (required for metasploit/exploit).",
+    ),
+    port_scanning_authorized: bool = typer.Option(
+        False,
         "--port-scanning-authorized",
         help="Authorize Nmap port scanning against resolved IPs. "
-             "Required for the nmap adapter. Independent of --intrusive."),
+        "Required for the nmap adapter. Independent of --intrusive.",
+    ),
     duration_min: int = typer.Option(30, "--duration-min"),
     rate: int = typer.Option(10, "--rate", help="max requests per second"),
     budget: int = typer.Option(1000, "--budget", help="max total requests"),
-    yes: bool = typer.Option(False, "--yes", "-y",
-        help="Skip interactive confirmation for --intrusive."),
+    yes: bool = typer.Option(
+        False, "--yes", "-y", help="Skip interactive confirmation for --intrusive."
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Issue an approval bound to current scope + manifest.
@@ -281,15 +341,16 @@ def approval_issue(
     try:
         eng = EngagementStore(db).get(engagement_id)
         if not eng or eng.state != "active":
-            console.print(f"[red]Engagement must be active[/] "
-                          f"(current: {eng.state if eng else 'missing'})")
+            console.print(
+                f"[red]Engagement must be active[/] "
+                f"(current: {eng.state if eng else 'missing'})"
+            )
             raise typer.Exit(1)
 
         manifest = ManifestStore(db).get_by_tool_version(tool, version)
         if not manifest:
             console.print(f"[red]No manifest[/] for {tool} {version}")
-            console.print("Register the manifest first "
-                          "(see docs/operator-guide.md)")
+            console.print("Register the manifest first (see docs/operator-guide.md)")
             raise typer.Exit(1)
 
         astore = AssetStore(db)
@@ -298,11 +359,14 @@ def approval_issue(
             console.print("[red]No approved assets[/]; add scope first")
             raise typer.Exit(1)
 
-        hostnames = [r[0] for r in db.connection.execute(
-            "SELECT canonical_value FROM approved_assets "
-            "WHERE engagement_id = ? AND asset_type = 'hostname'",
-            (engagement_id,),
-        ).fetchall()]
+        hostnames = [
+            r[0]
+            for r in db.connection.execute(
+                "SELECT canonical_value FROM approved_assets "
+                "WHERE engagement_id = ? AND asset_type = 'hostname'",
+                (engagement_id,),
+            ).fetchall()
+        ]
 
         # --- Lab flag sanity ---
         if lab and eng.platform != "lab":
@@ -386,8 +450,7 @@ def approval_issue(
         if path_profile == "restricted":
             if not path_prefix:
                 console.print(
-                    "[red]--path-profile=restricted requires "
-                    "--path-prefix[/]"
+                    "[red]--path-profile=restricted requires --path-prefix[/]"
                 )
                 raise typer.Exit(1)
 
@@ -438,8 +501,10 @@ def approval_issue(
         expires = now + timedelta(minutes=duration_min)
 
         if profile:
-            if profile not in manifest.manifest.allowed_profiles \
-                    and profile.split("/")[-1] not in manifest.manifest.allowed_profiles:
+            if (
+                profile not in manifest.manifest.allowed_profiles
+                and profile.split("/")[-1] not in manifest.manifest.allowed_profiles
+            ):
                 console.print(
                     f"[red]--profile {profile!r} not in "
                     f"manifest.allowed_profiles[/] "
@@ -450,27 +515,27 @@ def approval_issue(
         else:
             profile_id = (
                 manifest.manifest.allowed_profiles[0]
-                if manifest.manifest.allowed_profiles else "inventory"
+                if manifest.manifest.allowed_profiles
+                else "inventory"
             )
 
         # (6A) Parse --profile-param KEY=VALUE into a dict and hash it.
         from sentinel.runner.profiles import params_hash
+
         bound_params: dict[str, str] = {}
-        for raw in (profile_param or []):
+        for raw in profile_param or []:
             if "=" not in raw:
                 console.print(
-                    f"[red]--profile-param must be KEY=VALUE[/] "
-                    f"(got {raw!r})"
+                    f"[red]--profile-param must be KEY=VALUE[/] (got {raw!r})"
                 )
                 raise typer.Exit(1)
             k, v = raw.split("=", 1)
             if not k:
-                console.print(
-                    f"[red]--profile-param key is empty[/] (got {raw!r})"
-                )
+                console.print(f"[red]--profile-param key is empty[/] (got {raw!r})")
                 raise typer.Exit(1)
             bound_params[k] = v
         from sentinel.runner.profiles import get_profile, ProfileError
+
         try:
             selected_profile = get_profile(profile_id)
         except ProfileError:
@@ -487,16 +552,15 @@ def approval_issue(
                 )
                 raise typer.Exit(1)
             bound_params = {
-                key: bound_params[key]
-                for key in selected_profile.param_binding_keys
+                key: bound_params[key] for key in selected_profile.param_binding_keys
             }
         args_hash = (
-            params_hash(bound_params)
-            if bound_params or requires_param_binding else ""
+            params_hash(bound_params) if bound_params or requires_param_binding else ""
         )
         approval_profile_params = (
             {key: "" for key in selected_profile.param_binding_keys}
-            if requires_param_binding else bound_params
+            if requires_param_binding
+            else bound_params
         )
 
         appr = ApprovalRecord(
@@ -513,7 +577,8 @@ def approval_issue(
             allowed_http_methods=list(method or []),
             allowed_path_profile=path_profile,
             operation_profile_id=profile_id,
-            tool_name=tool, tool_version=version,
+            tool_name=tool,
+            tool_version=version,
             tool_executable_sha256=manifest.manifest.executable_sha256,
             adapter_code_sha256=adapter_hash,
             manifest_hash=manifest.manifest_hash,
@@ -569,6 +634,7 @@ def approval_issue(
     finally:
         db.close()
 
+
 @approval_app.command("list")
 def approval_list(engagement_id: str = typer.Argument(...)) -> None:
     """List approvals for an engagement."""
@@ -586,7 +652,9 @@ def approval_list(engagement_id: str = typer.Argument(...)) -> None:
         table = Table("ID", "Tool", "Version", "Expires", "Revoked")
         for r in rows:
             table.add_row(
-                r["approval_id"], r["tool_name"], r["tool_version"],
+                r["approval_id"],
+                r["tool_name"],
+                r["tool_version"],
                 r["expires_at_utc"][:19],
                 r["revoked_at_utc"][:19] if r["revoked_at_utc"] else "",
             )
@@ -612,8 +680,10 @@ def approval_revoke(
             raise typer.Exit(1)
         ApprovalStore(db).revoke(approval_id)
         AuditStore(db).append(
-            engagement_id=row["engagement_id"], actor=actor,
-            event_type="approval_revoked_cli", decision="revoked",
+            engagement_id=row["engagement_id"],
+            actor=actor,
+            event_type="approval_revoked_cli",
+            decision="revoked",
             details={"approval_id": approval_id},
         )
         console.print(f"[green]Revoked[/] {approval_id}")
@@ -623,6 +693,7 @@ def approval_revoke(
 
 # ─── scan commands ──────────────────────────────────────────────────────────
 
+
 @scan_app.command("gitleaks")
 def scan_gitleaks(
     engagement_id: str = typer.Argument(...),
@@ -631,12 +702,15 @@ def scan_gitleaks(
 ) -> None:
     """Run Gitleaks against engagement/<subdir>/."""
     from sentinel.adapters.gitleaks import run_gitleaks
+
     db = _db()
     try:
         result = run_gitleaks(
-            db=db, engagement_id=engagement_id,
+            db=db,
+            engagement_id=engagement_id,
             engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-            scan_subdir=subdir, actor=actor,
+            scan_subdir=subdir,
+            actor=actor,
         )
         _print_execution_status(result)
         console.print(f"Findings: {result.findings_count}")
@@ -656,12 +730,16 @@ def scan_httpx(
 ) -> None:
     """Run httpx inventory against an approved target."""
     from sentinel.adapters.httpx import run_httpx
+
     db = _db()
     try:
         result = run_httpx(
-            db=db, engagement_id=engagement_id,
+            db=db,
+            engagement_id=engagement_id,
             approval_id=approval_id,
-            target_hostname=target, port=port, scheme=scheme,
+            target_hostname=target,
+            port=port,
+            scheme=scheme,
             method="GET",
             engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
             actor=actor,
@@ -682,11 +760,14 @@ def scan_subfinder(
 ) -> None:
     """Run Subfinder (crt.sh only) for passive subdomain discovery."""
     from sentinel.adapters.subfinder import run_subfinder
+
     db = _db()
     try:
         result = run_subfinder(
-            db=db, engagement_id=engagement_id,
-            approval_id=approval_id, target_domain=domain,
+            db=db,
+            engagement_id=engagement_id,
+            approval_id=approval_id,
+            target_domain=domain,
             engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
             actor=actor,
         )
@@ -708,12 +789,15 @@ def scan_nmap(
 ) -> None:
     """Run Nmap TCP connect scan against an approved target."""
     from sentinel.adapters.nmap import run_nmap
+
     db = _db()
     try:
         port_list = [int(p) for p in ports.split(",") if p.strip()]
         result = run_nmap(
-            db=db, engagement_id=engagement_id,
-            approval_id=approval_id, target_hostname=target,
+            db=db,
+            engagement_id=engagement_id,
+            approval_id=approval_id,
+            target_hostname=target,
             ports=port_list,
             engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
             actor=actor,
@@ -732,6 +816,7 @@ app.add_typer(report_app, name="report")
 
 # ─── triage commands ────────────────────────────────────────────────────────
 
+
 @triage_app.command("run")
 def triage_run(
     engagement_id: str = typer.Argument(...),
@@ -742,12 +827,16 @@ def triage_run(
 ) -> None:
     """Triage a sanitized artifact into a candidate finding."""
     from sentinel.triage.pipeline import triage_artifact, TriageError
+
     db = _db()
     try:
         try:
             result = triage_artifact(
-                db=db, engagement_id=engagement_id,
-                artifact_id=artifact, actor=actor, model=model,
+                db=db,
+                engagement_id=engagement_id,
+                artifact_id=artifact,
+                actor=actor,
+                model=model,
                 use_fewshot=use_fewshot,
             )
         except TriageError as e:
@@ -769,6 +858,7 @@ def triage_run(
 
 # ─── findings commands ──────────────────────────────────────────────────────
 
+
 @triage_app.command("findings")
 def findings_list(engagement_id: str = typer.Argument(...)) -> None:
     """List findings for an engagement."""
@@ -787,8 +877,11 @@ def findings_list(engagement_id: str = typer.Argument(...)) -> None:
         for r in rows:
             title = (r["title"] or "")[:40]
             table.add_row(
-                r["id"], r["lifecycle_state"], r["candidate_category"],
-                r["confidence_hint"], title,
+                r["id"],
+                r["lifecycle_state"],
+                r["candidate_category"],
+                r["confidence_hint"],
+                title,
             )
         console.print(table)
     finally:
@@ -801,12 +894,14 @@ def finding_show(finding_id: str = typer.Argument(...)) -> None:
     db = _db()
     try:
         row = db.connection.execute(
-            "SELECT * FROM findings WHERE id = ?", (finding_id,),
+            "SELECT * FROM findings WHERE id = ?",
+            (finding_id,),
         ).fetchone()
         if not row:
             console.print(f"[red]Not found[/]: {finding_id}")
             raise typer.Exit(1)
         import json
+
         console.print(f"[bold]ID:[/] {row['id']}")
         console.print(f"[bold]State:[/] {row['lifecycle_state']}")
         console.print(f"[bold]Category:[/] {row['candidate_category']}")
@@ -825,13 +920,21 @@ def finding_show(finding_id: str = typer.Argument(...)) -> None:
         ).fetchall()
         if provenance:
             table = Table(
-                "Proposed reference", "Type", "Status", "Source", "Outcome", "Reason",
+                "Proposed reference",
+                "Type",
+                "Status",
+                "Source",
+                "Outcome",
+                "Reason",
             )
             for ref in provenance:
                 table.add_row(
-                    ref["original_identifier"], ref["reference_type"],
-                    ref["validation_status"], ref["validation_source"],
-                    ref["lookup_outcome"], ref["rejection_reason"] or "",
+                    ref["original_identifier"],
+                    ref["reference_type"],
+                    ref["validation_status"],
+                    ref["validation_source"],
+                    ref["lookup_outcome"],
+                    ref["rejection_reason"] or "",
                 )
             console.print(table)
         missing = json.loads(row["missing_evidence_json"] or "[]")
@@ -844,8 +947,9 @@ def finding_show(finding_id: str = typer.Argument(...)) -> None:
             (finding_id,),
         ).fetchall()
         if ev_rows:
-            console.print(f"[bold]Evidence:[/] "
-                          f"{', '.join(r['evidence_id'] for r in ev_rows)}")
+            console.print(
+                f"[bold]Evidence:[/] {', '.join(r['evidence_id'] for r in ev_rows)}"
+            )
     finally:
         db.close()
 
@@ -861,11 +965,15 @@ def finding_transition(
     ready_for_review, human_validated, report_ready, submitted, resolved,
     duplicate, rejected."""
     from sentinel.findings import FindingStore, FindingError
+
     db = _db()
     try:
         try:
             row = FindingStore(db).transition(
-                finding_id, to_state, actor=actor, note=note,
+                finding_id,
+                to_state,
+                actor=actor,
+                note=note,
             )
         except FindingError as e:
             console.print(f"[red]Transition refused:[/] {e}")
@@ -877,25 +985,31 @@ def finding_transition(
 
 # ─── report commands ────────────────────────────────────────────────────────
 
+
 @report_app.command("generate")
 def report_generate(
     engagement_id: str = typer.Argument(...),
     output: Path = typer.Option(
-        Path("report.md"), "--output", "-o",
+        Path("report.md"),
+        "--output",
+        "-o",
         help="Output Markdown file",
     ),
     include_candidate: bool = typer.Option(
-        False, "--include-candidate/--validated-only",
+        False,
+        "--include-candidate/--validated-only",
         help="Include candidate findings in the report",
     ),
 ) -> None:
     """Generate a Markdown report for the engagement."""
     from sentinel.reporting.report import generate_report, ReportError
+
     db = _db()
     try:
         try:
             report = generate_report(
-                db, engagement_id=engagement_id,
+                db,
+                engagement_id=engagement_id,
                 include_candidate=include_candidate,
             )
         except ReportError as e:
@@ -916,14 +1030,17 @@ def scan_bandit(
 ) -> None:
     """Run Bandit (Python static analysis) against engagement/<subdir>/."""
     from sentinel.adapters.bandit import run_bandit
+
     db = _db()
     try:
         result = run_bandit(
-            db=db, engagement_id=engagement_id,
+            db=db,
+            engagement_id=engagement_id,
             engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-            scan_subdir=subdir, actor=actor,
+            scan_subdir=subdir,
+            actor=actor,
         )
-        console.print(f"[green]Scan complete[/]")
+        console.print("[green]Scan complete[/]")
         _print_execution_status(result)
         console.print(f"Findings: {result.findings_count}")
         console.print(f"Evidence: {result.evidence.evidence_id}")
@@ -936,19 +1053,24 @@ def scan_dig(
     engagement_id: str = typer.Argument(...),
     approval_id: str = typer.Option(..., "--approval"),
     target: str = typer.Option(..., "--target", help="domain to look up"),
-    resolver: str = typer.Option(..., "--resolver", help="resolver IP (must be authorized)"),
+    resolver: str = typer.Option(
+        ..., "--resolver", help="resolver IP (must be authorized)"
+    ),
     record_type: str = typer.Option("A", "--type"),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run dig against an approved resolver (Class 1)."""
     from sentinel.adapters.dig import run_dig, DigAdapterError
+
     db = _db()
     try:
         try:
             result = run_dig(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
-                target_domain=target, resolver_ip=resolver,
+                target_domain=target,
+                resolver_ip=resolver,
                 record_type=record_type,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
                 actor=actor,
@@ -959,7 +1081,9 @@ def scan_dig(
         console.print(f"[green]Records found:[/] {len(result.records)}")
         _print_execution_status(result)
         for r in result.records[:10]:
-            console.print(f"  {r.name} {r.ttl} {r.record_class} {r.record_type} {r.value}")
+            console.print(
+                f"  {r.name} {r.ttl} {r.record_class} {r.record_type} {r.value}"
+            )
         console.print(f"Evidence: {result.evidence.evidence_id}")
     finally:
         db.close()
@@ -972,19 +1096,26 @@ def scan_ffuf(
     target: str = typer.Option(..., "--target", help="hostname"),
     port: int = typer.Option(443, "--port"),
     scheme: str = typer.Option("https", "--scheme"),
-    wordlist: str = typer.Option("common.txt", "--wordlist",
-        help="filename under the packaged wordlists/ resource"),
+    wordlist: str = typer.Option(
+        "common.txt",
+        "--wordlist",
+        help="filename under the packaged wordlists/ resource",
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run ffuf directory discovery against an approved target (Class 2)."""
     from sentinel.adapters.ffuf import run_ffuf, FfufAdapterError
+
     db = _db()
     try:
         try:
             result = run_ffuf(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
-                target_hostname=target, port=port, scheme=scheme,
+                target_hostname=target,
+                port=port,
+                scheme=scheme,
                 wordlist_name=wordlist,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
                 actor=actor,
@@ -1011,13 +1142,16 @@ def scan_semgrep(
 ) -> None:
     """Run Semgrep (source static analysis) against engagement/<subdir>/."""
     from sentinel.adapters.semgrep import run_semgrep, SemgrepAdapterError
+
     db = _db()
     try:
         try:
             result = run_semgrep(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-                scan_subdir=subdir, actor=actor,
+                scan_subdir=subdir,
+                actor=actor,
             )
         except SemgrepAdapterError as e:
             console.print(f"[red]semgrep refused:[/] {e}")
@@ -1030,6 +1164,7 @@ def scan_semgrep(
     finally:
         db.close()
 
+
 @scan_app.command("trivy")
 def scan_trivy(
     engagement_id: str = typer.Argument(...),
@@ -1039,13 +1174,17 @@ def scan_trivy(
 ) -> None:
     """Run Trivy (dependency scan, offline) against engagement/<subdir>/."""
     from sentinel.adapters.trivy import run_trivy, TrivyAdapterError
+
     db = _db()
     try:
         try:
             result = run_trivy(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-                scan_subdir=subdir, scan_type=scan_type, actor=actor,
+                scan_subdir=subdir,
+                scan_type=scan_type,
+                actor=actor,
             )
         except TrivyAdapterError as e:
             console.print(f"[red]trivy refused:[/] {e}")
@@ -1053,30 +1192,38 @@ def scan_trivy(
         _print_execution_status(result)
         console.print(f"[green]Findings:[/] {result.findings_count}")
         for f in result.findings[:10]:
-            console.print(f"  {f.vuln_id} {f.package}:{f.installed_version} -> {f.fixed_version}")
+            console.print(
+                f"  {f.vuln_id} {f.package}:{f.installed_version} -> {f.fixed_version}"
+            )
         console.print(f"Evidence: {result.evidence.evidence_id}")
     finally:
         db.close()
+
 
 @scan_app.command("whois")
 def scan_whois(
     engagement_id: str = typer.Argument(...),
     approval_id: str = typer.Option(..., "--approval"),
     target: str = typer.Option(..., "--target", help="domain to look up"),
-    server: str = typer.Option("", "--server",
-        help="WHOIS server (empty = derive from TLD)"),
+    server: str = typer.Option(
+        "", "--server", help="WHOIS server (empty = derive from TLD)"
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run whois against an approved server (Class 1)."""
     from sentinel.adapters.whois import run_whois, WhoisAdapterError
+
     db = _db()
     try:
         try:
             result = run_whois(
-                db=db, engagement_id=engagement_id, approval_id=approval_id,
+                db=db,
+                engagement_id=engagement_id,
+                approval_id=approval_id,
                 target_domain=target,
                 whois_server=server or None,
-                engagements_root=DEFAULT_ENGAGEMENTS_ROOT, actor=actor,
+                engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
+                actor=actor,
             )
         except WhoisAdapterError as e:
             console.print(f"[red]whois refused:[/] {e}")
@@ -1085,6 +1232,7 @@ def scan_whois(
         console.print(f"[green]Evidence:[/] {result.evidence.evidence_id}")
     finally:
         db.close()
+
 
 @scan_app.command("nikto")
 def scan_nikto(
@@ -1097,13 +1245,17 @@ def scan_nikto(
 ) -> None:
     """Run nikto web server scan against an approved target (Class 2)."""
     from sentinel.adapters.nikto import run_nikto, NiktoAdapterError
+
     db = _db()
     try:
         try:
             result = run_nikto(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
-                target_hostname=target, port=port, scheme=scheme,
+                target_hostname=target,
+                port=port,
+                scheme=scheme,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
                 actor=actor,
             )
@@ -1130,11 +1282,13 @@ def scan_scion(
 ) -> None:
     """Run scion passive subdomain discovery (Class 1)."""
     from sentinel.adapters.scion import run_scion, ScionAdapterError
+
     db = _db()
     try:
         try:
             result = run_scion(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
                 target_domain=target,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
@@ -1160,22 +1314,31 @@ def scan_sqlmap(
     port: int = typer.Option(80, "--port"),
     scheme: str = typer.Option("http", "--scheme"),
     path: str = typer.Option("/", "--path"),
-    query: str = typer.Option("", "--query",
-        help="URL query string for GET, e.g. 'id=1'"),
-    data: str = typer.Option("", "--data",
-        help="POST body, e.g. 'id=1'. Empty means GET."),
+    query: str = typer.Option(
+        "", "--query", help="URL query string for GET, e.g. 'id=1'"
+    ),
+    data: str = typer.Option(
+        "", "--data", help="POST body, e.g. 'id=1'. Empty means GET."
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run sqlmap detection (Class 3, LAB-ONLY). Requires intrusive_authorized=True."""
     from sentinel.adapters.sqlmap import run_sqlmap, SqlmapAdapterError
+
     db = _db()
     try:
         try:
             result = run_sqlmap(
-                db=db, engagement_id=engagement_id, approval_id=approval_id,
-                target_hostname=target, port=port, scheme=scheme,
+                db=db,
+                engagement_id=engagement_id,
+                approval_id=approval_id,
+                target_hostname=target,
+                port=port,
+                scheme=scheme,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-                path=path, query=query, data=data or None,
+                path=path,
+                query=query,
+                data=data or None,
                 actor=actor,
             )
         except SqlmapAdapterError as e:
@@ -1202,13 +1365,19 @@ def scan_nuclei(
 ) -> None:
     """Run nuclei template scan against an approved target (Class 2)."""
     from sentinel.adapters.nuclei import run_nuclei, NucleiAdapterError
+
     db = _db()
     try:
         try:
             result = run_nuclei(
-                db=db, engagement_id=engagement_id, approval_id=approval_id,
-                target_hostname=target, port=port, scheme=scheme,
-                engagements_root=DEFAULT_ENGAGEMENTS_ROOT, actor=actor,
+                db=db,
+                engagement_id=engagement_id,
+                approval_id=approval_id,
+                target_hostname=target,
+                port=port,
+                scheme=scheme,
+                engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
+                actor=actor,
             )
         except NucleiAdapterError as e:
             console.print(f"[red]nuclei refused:[/] {e}")
@@ -1229,19 +1398,24 @@ def scan_metasploit(
     target: str = typer.Option(..., "--target", help="hostname"),
     port: int = typer.Option(80, "--port"),
     scheme: str = typer.Option("http", "--scheme"),
-    module: str = typer.Option(..., "--module",
-        help="e.g. auxiliary/scanner/http/title"),
-    mode: str = typer.Option("check", "--mode",
-        help="check (Class 2) or exploit (Class 3, LAB-ONLY)"),
-    payload: str = typer.Option("", "--payload",
-        help="payload module for exploit mode, e.g. cmd/unix/generic"),
+    module: str = typer.Option(
+        ..., "--module", help="e.g. auxiliary/scanner/http/title"
+    ),
+    mode: str = typer.Option(
+        "check", "--mode", help="check (Class 2) or exploit (Class 3, LAB-ONLY)"
+    ),
+    payload: str = typer.Option(
+        "", "--payload", help="payload module for exploit mode, e.g. cmd/unix/generic"
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run Metasploit check (Class 2) or exploit (Class 3, LAB-ONLY)."""
     from sentinel.adapters.metasploit import (
-        run_metasploit_check, run_metasploit_exploit,
+        run_metasploit_check,
+        run_metasploit_exploit,
         MetasploitAdapterError,
     )
+
     if mode not in ("check", "exploit"):
         console.print(f"[red]invalid --mode {mode!r}; use check or exploit[/]")
         raise typer.Exit(1)
@@ -1250,18 +1424,25 @@ def scan_metasploit(
         try:
             if mode == "exploit":
                 result = run_metasploit_exploit(
-                    db=db, engagement_id=engagement_id,
+                    db=db,
+                    engagement_id=engagement_id,
                     approval_id=approval_id,
-                    target_hostname=target, port=port, scheme=scheme,
+                    target_hostname=target,
+                    port=port,
+                    scheme=scheme,
                     module=module,
                     engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-                    payload=payload or None, actor=actor,
+                    payload=payload or None,
+                    actor=actor,
                 )
             else:
                 result = run_metasploit_check(
-                    db=db, engagement_id=engagement_id,
+                    db=db,
+                    engagement_id=engagement_id,
                     approval_id=approval_id,
-                    target_hostname=target, port=port, scheme=scheme,
+                    target_hostname=target,
+                    port=port,
+                    scheme=scheme,
                     module=module,
                     engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
                     actor=actor,
@@ -1282,7 +1463,8 @@ def scan_metasploit(
 
 # (batch-7) Wire the tool-manifest management sub-app. The db_factory
 # is passed in rather than imported to avoid a circular import.
-from sentinel.tools.cli import register_tool_cli as _register_tool_cli
+from sentinel.tools.cli import register_tool_cli as _register_tool_cli  # noqa: E402
+
 # Pass a lambda so tests that monkeypatch `sentinel.cli._db`
 # take effect — a direct `_db` reference would bind at import time.
 _register_tool_cli(app, lambda: _db())
@@ -1291,29 +1473,37 @@ _register_tool_cli(app, lambda: _db())
 @scan_app.command("exiftool")
 def scan_exiftool(
     engagement_id: str = typer.Argument(...),
-    subdir: str = typer.Option("source", "--subdir",
-        help="Directory under engagement/<eng_id>/ to scan. "
-             "Default: source."),
+    subdir: str = typer.Option(
+        "source",
+        "--subdir",
+        help="Directory under engagement/<eng_id>/ to scan. Default: source.",
+    ),
     actor: str = typer.Option("operator", "--actor"),
 ) -> None:
     """Run ExifTool (document metadata extraction) against engagement/<subdir>/. (Class 0)"""
     from sentinel.adapters.exiftool import (
-        run_exiftool, ExifToolAdapterError,
+        run_exiftool,
+        ExifToolAdapterError,
     )
+
     db = _db()
     try:
         try:
             result = run_exiftool(
-                db, engagement_id=engagement_id,
+                db,
+                engagement_id=engagement_id,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
-                scan_subdir=subdir, actor=actor,
+                scan_subdir=subdir,
+                actor=actor,
             )
         except ExifToolAdapterError as e:
             console.print(f"[red]exiftool refused:[/] {e}")
             raise typer.Exit(1)
         console.print(f"[green]Files scanned:[/] {result.files_scanned}")
         _print_execution_status(result)
-        console.print(f"[green]Files with sensitive metadata:[/] {result.findings_count}")
+        console.print(
+            f"[green]Files with sensitive metadata:[/] {result.findings_count}"
+        )
         for f in result.findings[:10]:
             fields = ", ".join(f.sensitive_fields[:5])
             if len(f.sensitive_fields) > 5:
@@ -1335,14 +1525,19 @@ def scan_zap(
 ) -> None:
     """Run ZAP baseline (spider + passive) scan against an approved target (Class 2)."""
     from sentinel.adapters.zap import run_zap_baseline, ZapAdapterError
+
     db = _db()
     try:
         try:
             result = run_zap_baseline(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
-                target_hostname=target, port=port, scheme=scheme,
-                engagements_root=DEFAULT_ENGAGEMENTS_ROOT, actor=actor,
+                target_hostname=target,
+                port=port,
+                scheme=scheme,
+                engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
+                actor=actor,
             )
         except ZapAdapterError as e:
             console.print(f"[red]zap refused:[/] {e}")
@@ -1350,9 +1545,7 @@ def scan_zap(
         _print_execution_status(result)
         console.print(f"[green]Findings:[/] {result.findings_count}")
         for f in result.findings[:15]:
-            console.print(
-                f"  [{f.risk}] {f.name} ({f.instance_count} instance(s))"
-            )
+            console.print(f"  [{f.risk}] {f.name} ({f.instance_count} instance(s))")
         console.print(f"Report bytes: {result.report_bytes}")
         console.print(f"Evidence: {result.evidence.evidence_id}")
     finally:
@@ -1365,7 +1558,8 @@ def scan_theharvester(
     approval_id: str = typer.Option(..., "--approval"),
     target: str = typer.Option(..., "--target", help="domain to discover"),
     providers: str = typer.Option(
-        "crtsh,otx,rapiddns", "--providers",
+        "crtsh,otx,rapiddns",
+        "--providers",
         help="comma-separated; subset of crtsh,otx,rapiddns",
     ),
     limit: int = typer.Option(500, "--limit"),
@@ -1373,19 +1567,23 @@ def scan_theharvester(
 ) -> None:
     """Run theHarvester passive discovery against an approved domain (Class 1)."""
     from sentinel.adapters.theharvester import (
-        run_theharvester, TheHarvesterAdapterError,
+        run_theharvester,
+        TheHarvesterAdapterError,
     )
+
     prov = tuple(s.strip() for s in providers.split(",") if s.strip())
     db = _db()
     try:
         try:
             result = run_theharvester(
-                db=db, engagement_id=engagement_id,
+                db=db,
+                engagement_id=engagement_id,
                 approval_id=approval_id,
                 target_domain=target,
                 engagements_root=DEFAULT_ENGAGEMENTS_ROOT,
                 providers=prov,
-                limit=limit, actor=actor,
+                limit=limit,
+                actor=actor,
             )
         except TheHarvesterAdapterError as e:
             console.print(f"[red]theHarvester refused:[/] {e}")
@@ -1414,8 +1612,9 @@ def evidence_release(
     engagement_id: str = typer.Argument(...),
     evidence_id: str = typer.Argument(...),
     reviewer: str = typer.Option("operator", "--reviewer"),
-    notes: str = typer.Option("", "--notes",
-        help="Optional reviewer notes for the audit record."),
+    notes: str = typer.Option(
+        "", "--notes", help="Optional reviewer notes for the audit record."
+    ),
 ) -> None:
     """Release a held_for_review artifact to redacted status.
 
@@ -1423,19 +1622,19 @@ def evidence_release(
     releasing an already-released artifact is a no-op with a message).
     """
     from sentinel.evidence.store import (
-        release_held_artifact, EvidenceCrossEngagement,
+        release_held_artifact,
+        EvidenceCrossEngagement,
     )
+
     db = _db()
     try:
         row = db.connection.execute(
-            "SELECT redaction_status FROM artifacts "
-            "WHERE id = ? AND engagement_id = ?",
+            "SELECT redaction_status FROM artifacts WHERE id = ? AND engagement_id = ?",
             (evidence_id, engagement_id),
         ).fetchone()
         if row is None:
             console.print(
-                f"[red]No artifact {evidence_id!r} in engagement "
-                f"{engagement_id!r}[/]"
+                f"[red]No artifact {evidence_id!r} in engagement {engagement_id!r}[/]"
             )
             raise typer.Exit(1)
         if row["redaction_status"] != "held_for_review":
@@ -1446,16 +1645,15 @@ def evidence_release(
             return
         try:
             release_held_artifact(
-                db, evidence_id,
+                db,
+                evidence_id,
                 engagement_id=engagement_id,
                 reviewer=reviewer,
             )
         except EvidenceCrossEngagement as e:
             console.print(f"[red]Cross-engagement refused:[/] {e}")
             raise typer.Exit(1)
-        console.print(
-            f"[green]Released[/] {evidence_id} by {reviewer}"
-        )
+        console.print(f"[green]Released[/] {evidence_id} by {reviewer}")
         if notes:
             console.print(f"Notes: {notes}")
     finally:
@@ -1486,10 +1684,15 @@ def knowledge_sync_cve(
     explicitly-INVALID CVEs are dropped.
     """
     from sentinel.knowledge.nvd import (
-        fetch_cve, store_cve, NvdError, NvdCveNotFound,
-        mark_cve_invalid, record_sync_attempt,
+        fetch_cve,
+        store_cve,
+        NvdError,
+        NvdCveNotFound,
+        mark_cve_invalid,
+        record_sync_attempt,
     )
     from sentinel.audit.store import AuditStore
+
     db = _db()
     try:
         try:
@@ -1501,12 +1704,18 @@ def knowledge_sync_cve(
             # CVE could be hallucinated repeatedly.
             mark_cve_invalid(db, cve_id.upper(), reason=str(e))
             record_sync_attempt(
-                db, cve_id=cve_id, outcome="not_found", actor=actor,
-                detail=str(e), record_status="INVALID",
+                db,
+                cve_id=cve_id,
+                outcome="not_found",
+                actor=actor,
+                detail=str(e),
+                record_status="INVALID",
             )
             AuditStore(db).append(
-                engagement_id="system", actor=actor,
-                event_type="cve_marked_invalid", decision="ok",
+                engagement_id="system",
+                actor=actor,
+                event_type="cve_marked_invalid",
+                decision="ok",
                 details={"cve_id": cve_id.upper(), "reason": str(e)},
             )
             console.print(
@@ -1517,12 +1726,17 @@ def knowledge_sync_cve(
             raise typer.Exit(1)
         except NvdError as e:
             record_sync_attempt(
-                db, cve_id=cve_id, outcome="transient_error", actor=actor,
+                db,
+                cve_id=cve_id,
+                outcome="transient_error",
+                actor=actor,
                 detail=str(e),
             )
             AuditStore(db).append(
-                engagement_id="system", actor=actor,
-                event_type="cve_sync_failed", decision="unverified",
+                engagement_id="system",
+                actor=actor,
+                event_type="cve_sync_failed",
+                decision="unverified",
                 details={"cve_id": cve_id.upper(), "reason": str(e)},
             )
             console.print(
@@ -1533,16 +1747,23 @@ def knowledge_sync_cve(
         store_cve(db, cve)
         is_rejected = cve.vuln_status.strip().upper() in {"REJECTED", "INVALID"}
         record_sync_attempt(
-            db, cve_id=cve.cve_id,
+            db,
+            cve_id=cve.cve_id,
             outcome="rejected" if is_rejected else "verified",
-            actor=actor, detail=f"NVD vulnStatus={cve.vuln_status!r}",
+            actor=actor,
+            detail=f"NVD vulnStatus={cve.vuln_status!r}",
             record_status=cve.vuln_status,
         )
         AuditStore(db).append(
-            engagement_id="system", actor=actor,
-            event_type="cve_sync", decision="rejected" if is_rejected else "verified",
-            details={"cve_id": cve.cve_id, "source": "nvd-api-2.0",
-                     "vuln_status": cve.vuln_status},
+            engagement_id="system",
+            actor=actor,
+            event_type="cve_sync",
+            decision="rejected" if is_rejected else "verified",
+            details={
+                "cve_id": cve.cve_id,
+                "source": "nvd-api-2.0",
+                "vuln_status": cve.vuln_status,
+            },
         )
         label = "Rejected" if is_rejected else "Verified"
         style = "yellow" if is_rejected else "green"
@@ -1550,9 +1771,7 @@ def knowledge_sync_cve(
         console.print(f"  status: {cve.vuln_status}")
         console.print(f"  published: {cve.published_utc}")
         if cve.cvss_score is not None:
-            console.print(
-                f"  cvss: {cve.cvss_score} ({cve.cvss_severity or 'n/a'})"
-            )
+            console.print(f"  cvss: {cve.cvss_score} ({cve.cvss_severity or 'n/a'})")
         console.print(f"  description: {cve.description[:120]}")
     finally:
         db.close()
@@ -1609,8 +1828,11 @@ def knowledge_list() -> None:
         table = Table("Entry ID", "Review", "Topic", "Title", "Source")
         for row in rows:
             table.add_row(
-                row["id"], row["review_decision"], row["topic"],
-                row["title"], row["source_url"],
+                row["id"],
+                row["review_decision"],
+                row["topic"],
+                row["title"],
+                row["source_url"],
             )
         console.print(table)
     finally:
@@ -1622,18 +1844,26 @@ def knowledge_review(
     entry_id: str = typer.Argument(..., help="Knowledge entry id (kb_… )"),
     decision: str = typer.Option(..., "--decision", help="approved | rejected"),
     rationale: str = typer.Option(..., "--rationale"),
-    reviewer: str = typer.Option(..., "--reviewer",
-        help="Reviewer label; attribution only, not authenticated identity."),
+    reviewer: str = typer.Option(
+        ...,
+        "--reviewer",
+        help="Reviewer label; attribution only, not authenticated identity.",
+    ),
 ) -> None:
     """Independently review the current immutable knowledge revision."""
     from sentinel.knowledge.provenance import (
-        review_revision, KnowledgeReviewError,
+        review_revision,
+        KnowledgeReviewError,
     )
+
     db = _db()
     try:
         try:
             review_id = review_revision(
-                db, entry_id, reviewer=reviewer, decision=decision,
+                db,
+                entry_id,
+                reviewer=reviewer,
+                decision=decision,
                 rationale=rationale,
             )
         except KnowledgeReviewError as e:
@@ -1675,17 +1905,22 @@ def findings_show_alias(
 @findings_app.command("transition")
 def findings_transition_alias(
     finding_id: str = typer.Argument(...),
-    to_state: str = typer.Option(..., "--to",
+    to_state: str = typer.Option(
+        ...,
+        "--to",
         help="Target lifecycle state (candidate|ready_for_review|"
-             "human_validated|report_ready|submitted|rejected)."),
+        "human_validated|report_ready|submitted|rejected).",
+    ),
     actor: str = typer.Option("operator", "--actor"),
     rationale: str = typer.Option("", "--rationale"),
 ) -> None:
     """Transition a finding's lifecycle state. Alias for `triage transition`."""
     # Delegate to the existing implementation — its signature is stable.
     finding_transition(
-        finding_id=finding_id, to_state=to_state,
-        actor=actor, rationale=rationale,
+        finding_id=finding_id,
+        to_state=to_state,
+        actor=actor,
+        rationale=rationale,
     )
 
 

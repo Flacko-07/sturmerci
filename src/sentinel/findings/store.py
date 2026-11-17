@@ -5,6 +5,7 @@ Triage can create candidate rows, but this store is the only supported
 application path for advancing their lifecycle. Every transition is
 operator initiated and committed atomically with its audit event.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -30,7 +31,12 @@ _ALLOWED = {
     "rejected": set(),
 }
 
-_EVIDENCE_REQUIRED = {"ready_for_review", "human_validated", "report_ready", "submitted"}
+_EVIDENCE_REQUIRED = {
+    "ready_for_review",
+    "human_validated",
+    "report_ready",
+    "submitted",
+}
 _SAFE_EVIDENCE_STATES = ("clean", "redacted")
 
 
@@ -44,7 +50,8 @@ class FindingStore:
 
     def get(self, finding_id: str) -> dict | None:
         row = self._db.connection.execute(
-            "SELECT * FROM findings WHERE id = ?", (finding_id,),
+            "SELECT * FROM findings WHERE id = ?",
+            (finding_id,),
         ).fetchone()
         return dict(row) if row else None
 
@@ -72,7 +79,8 @@ class FindingStore:
         with self._db.transaction() as conn:
             row = conn.execute(
                 "SELECT id, engagement_id, asset_id, artifact_id, lifecycle_state "
-                "FROM findings WHERE id = ?", (finding_id,),
+                "FROM findings WHERE id = ?",
+                (finding_id,),
             ).fetchone()
             if row is None:
                 raise FindingError(f"finding {finding_id!r} not found")
@@ -88,8 +96,13 @@ class FindingStore:
                 "SELECT engagement_id FROM artifacts WHERE id = ?",
                 (row["artifact_id"],),
             ).fetchone()
-            if source_artifact is None or source_artifact["engagement_id"] != row["engagement_id"]:
-                raise FindingError("finding artifact is missing or belongs to another engagement")
+            if (
+                source_artifact is None
+                or source_artifact["engagement_id"] != row["engagement_id"]
+            ):
+                raise FindingError(
+                    "finding artifact is missing or belongs to another engagement"
+                )
 
             if row["asset_id"] is not None:
                 asset = conn.execute(
@@ -97,7 +110,9 @@ class FindingStore:
                     (row["asset_id"], row["engagement_id"]),
                 ).fetchone()
                 if asset is None:
-                    raise FindingError("finding asset is missing or belongs to another engagement")
+                    raise FindingError(
+                        "finding asset is missing or belongs to another engagement"
+                    )
 
             if to_state in _EVIDENCE_REQUIRED:
                 evidence = conn.execute(
@@ -119,7 +134,9 @@ class FindingStore:
                 (to_state, finding_id, from_state),
             )
             if updated.rowcount != 1:
-                raise FindingError("finding changed concurrently; reload before retrying")
+                raise FindingError(
+                    "finding changed concurrently; reload before retrying"
+                )
 
             AuditStore(self._db).append(
                 engagement_id=row["engagement_id"],

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Bounded sandbox capture preserves partial data on timeout."""
+
 from __future__ import annotations
 
 from io import BytesIO

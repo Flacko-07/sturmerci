@@ -6,6 +6,7 @@ POSIX equivalent (start_new_session=True + killpg) because the
 orchestrator runs inside WSL2. Document this substitution in
 docs/threat-model.md.
 """
+
 from __future__ import annotations
 
 import os

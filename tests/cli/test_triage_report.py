@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """CLI triage + report command tests."""
+
 from __future__ import annotations
 
 import json
@@ -17,16 +18,18 @@ from sentinel.storage.db import Database
 
 
 def _fake_model_response(evidence_id: str) -> str:
-    return json.dumps({
-        "task_type": "finding_triage",
-        "summary": "Sensitive data exposure via verbose error messages",
-        "candidate_category": "information_exposure",
-        "possible_references": ["CWE-209"],
-        "evidence_ids": [evidence_id],
-        "missing_evidence": ["Confirm error page is internet-facing"],
-        "confidence_hint": "medium",
-        "recommended_next_step": "Manual review of the error response",
-    })
+    return json.dumps(
+        {
+            "task_type": "finding_triage",
+            "summary": "Sensitive data exposure via verbose error messages",
+            "candidate_category": "information_exposure",
+            "possible_references": ["CWE-209"],
+            "evidence_ids": [evidence_id],
+            "missing_evidence": ["Confirm error page is internet-facing"],
+            "confidence_hint": "medium",
+            "recommended_next_step": "Manual review of the error response",
+        }
+    )
 
 
 @pytest.fixture
@@ -37,27 +40,34 @@ def env(tmp_path, monkeypatch):
     client_mod._reset_circuit_for_tests()
     db = Database(db_path)
     eng = EngagementStore(db).create(
-        platform="lab", program_name="triage-cli-test",
-        policy_url=None, actor="operator",
+        platform="lab",
+        program_name="triage-cli-test",
+        policy_url=None,
+        actor="operator",
         engagements_root=tmp_path / "engagements",
     )
     EngagementStore(db).transition(eng.id, "scope_review", "operator")
     EngagementStore(db).transition(eng.id, "active", "operator")
     artifact = ingest_evidence(
-        db, engagements_root=tmp_path / "engagements",
-        engagement_id=eng.id, source_name="fixture.txt",
+        db,
+        engagements_root=tmp_path / "engagements",
+        engagement_id=eng.id,
+        source_name="fixture.txt",
         content_type="text/plain",
         content=b"error: 500 Internal Server Error at /admin",
         actor="operator",
     )
     monkeypatch.setattr(
-        client_mod, "_ollama_chat",
+        client_mod,
+        "_ollama_chat",
         lambda **kw: SimpleNamespace(
             message=SimpleNamespace(content=_fake_model_response(artifact.evidence_id)),
         ),
     )
     yield {
-        "db": db, "db_path": db_path, "eng_id": eng.id,
+        "db": db,
+        "db_path": db_path,
+        "eng_id": eng.id,
         "artifact_id": artifact.evidence_id,
         "engagements_root": tmp_path / "engagements",
     }
@@ -78,10 +88,14 @@ def test_triage_run_creates_finding(runner, env):
     assert result.exit_code == 0, result.output
     assert "Finding created:" in result.output
     # Verify in DB
-    count = env["db"].connection.execute(
-        "SELECT COUNT(*) FROM findings WHERE engagement_id = ?",
-        (env["eng_id"],),
-    ).fetchone()[0]
+    count = (
+        env["db"]
+        .connection.execute(
+            "SELECT COUNT(*) FROM findings WHERE engagement_id = ?",
+            (env["eng_id"],),
+        )
+        .fetchone()[0]
+    )
     assert count == 1
 
 
@@ -96,10 +110,14 @@ def test_findings_list_and_show(runner, env):
     assert r.exit_code == 0
     assert "candidate" in r.output
     # Extract finding ID
-    finding_id = env["db"].connection.execute(
-        "SELECT id FROM findings WHERE engagement_id = ?",
-        (env["eng_id"],),
-    ).fetchone()[0]
+    finding_id = (
+        env["db"]
+        .connection.execute(
+            "SELECT id FROM findings WHERE engagement_id = ?",
+            (env["eng_id"],),
+        )
+        .fetchone()[0]
+    )
     # Show
     r = runner.invoke(cli_mod.app, ["triage", "show", finding_id])
     assert r.exit_code == 0
@@ -111,23 +129,25 @@ def test_transition_to_ready_for_review_then_human_validated(runner, env):
         cli_mod.app,
         ["triage", "run", env["eng_id"], "--artifact", env["artifact_id"]],
     )
-    finding_id = env["db"].connection.execute(
-        "SELECT id FROM findings WHERE engagement_id = ?",
-        (env["eng_id"],),
-    ).fetchone()[0]
+    finding_id = (
+        env["db"]
+        .connection.execute(
+            "SELECT id FROM findings WHERE engagement_id = ?",
+            (env["eng_id"],),
+        )
+        .fetchone()[0]
+    )
 
     r = runner.invoke(
         cli_mod.app,
-        ["triage", "transition", finding_id, "ready_for_review",
-         "--actor", "operator"],
+        ["triage", "transition", finding_id, "ready_for_review", "--actor", "operator"],
     )
     assert r.exit_code == 0, r.output
     assert "ready_for_review" in r.output
 
     r = runner.invoke(
         cli_mod.app,
-        ["triage", "transition", finding_id, "human_validated",
-         "--actor", "operator"],
+        ["triage", "transition", finding_id, "human_validated", "--actor", "operator"],
     )
     assert r.exit_code == 0, r.output
     assert "human_validated" in r.output
@@ -138,15 +158,18 @@ def test_invalid_transition_rejected(runner, env):
         cli_mod.app,
         ["triage", "run", env["eng_id"], "--artifact", env["artifact_id"]],
     )
-    finding_id = env["db"].connection.execute(
-        "SELECT id FROM findings WHERE engagement_id = ?",
-        (env["eng_id"],),
-    ).fetchone()[0]
+    finding_id = (
+        env["db"]
+        .connection.execute(
+            "SELECT id FROM findings WHERE engagement_id = ?",
+            (env["eng_id"],),
+        )
+        .fetchone()[0]
+    )
     # candidate -> human_validated is not allowed
     r = runner.invoke(
         cli_mod.app,
-        ["triage", "transition", finding_id, "human_validated",
-         "--actor", "operator"],
+        ["triage", "transition", finding_id, "human_validated", "--actor", "operator"],
     )
     assert r.exit_code != 0 or "refused" in r.output.lower()
 
@@ -157,10 +180,14 @@ def test_report_generate_validated_only(runner, env, tmp_path):
         cli_mod.app,
         ["triage", "run", env["eng_id"], "--artifact", env["artifact_id"]],
     )
-    finding_id = env["db"].connection.execute(
-        "SELECT id FROM findings WHERE engagement_id = ?",
-        (env["eng_id"],),
-    ).fetchone()[0]
+    finding_id = (
+        env["db"]
+        .connection.execute(
+            "SELECT id FROM findings WHERE engagement_id = ?",
+            (env["eng_id"],),
+        )
+        .fetchone()[0]
+    )
     runner.invoke(
         cli_mod.app,
         ["triage", "transition", finding_id, "ready_for_review"],
@@ -186,8 +213,10 @@ def test_report_generate_validated_only(runner, env, tmp_path):
 def test_report_excludes_candidate_by_default(env):
     # Create a finding but leave as candidate
     from sentinel.triage.pipeline import triage_artifact
+
     triage_artifact(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         artifact_id=env["artifact_id"],
     )
     report = generate_report(env["db"], engagement_id=env["eng_id"])
@@ -198,12 +227,15 @@ def test_report_excludes_candidate_by_default(env):
 def test_report_escapes_hostile_content(env):
     """Markdown-escape must neutralize javascript: URIs and structural chars."""
     from sentinel.triage.pipeline import triage_artifact
+
     result = triage_artifact(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         artifact_id=env["artifact_id"],
     )
     # Manually promote so it appears in validated-only report
     from sentinel.findings import FindingStore
+
     store = FindingStore(env["db"])
     store.transition(result.finding_id, "ready_for_review", actor="operator")
     store.transition(result.finding_id, "human_validated", actor="operator")
@@ -217,40 +249,56 @@ def test_report_escapes_hostile_content(env):
 def test_report_refuses_modified_sanitized_evidence(env):
     from sentinel.triage.pipeline import triage_artifact
     from sentinel.findings import FindingStore
-    artifact_path = env["db"].connection.execute(
-        "SELECT sanitized_path FROM artifacts WHERE id=?",
-        (env["artifact_id"],),
-    ).fetchone()[0]
+
+    artifact_path = (
+        env["db"]
+        .connection.execute(
+            "SELECT sanitized_path FROM artifacts WHERE id=?",
+            (env["artifact_id"],),
+        )
+        .fetchone()[0]
+    )
     result = triage_artifact(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         artifact_id=env["artifact_id"],
     )
     store = FindingStore(env["db"])
     store.transition(result.finding_id, "ready_for_review", actor="operator")
     store.transition(result.finding_id, "human_validated", actor="operator")
     from pathlib import Path
+
     Path(artifact_path).write_text("tampered after finding")
     with pytest.raises(ValueError, match="integrity mismatch"):
         generate_report(env["db"], engagement_id=env["eng_id"])
-    assert env["db"].connection.execute(
-        "SELECT COUNT(*) FROM audit_events WHERE event_type='evidence_integrity_rejected'"
-    ).fetchone()[0] == 1
+    assert (
+        env["db"]
+        .connection.execute(
+            "SELECT COUNT(*) FROM audit_events WHERE event_type='evidence_integrity_rejected'"
+        )
+        .fetchone()[0]
+        == 1
+    )
 
 
 def test_report_refuses_incomplete_execution_evidence(env):
     from sentinel.triage.pipeline import triage_artifact
     from sentinel.findings import FindingStore
-    from sentinel.reporting.report import ReportError
 
     result = triage_artifact(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         artifact_id=env["artifact_id"],
     )
     FindingStore(env["db"]).transition(
-        result.finding_id, "ready_for_review", actor="operator",
+        result.finding_id,
+        "ready_for_review",
+        actor="operator",
     )
     FindingStore(env["db"]).transition(
-        result.finding_id, "human_validated", actor="operator",
+        result.finding_id,
+        "human_validated",
+        actor="operator",
     )
     env["db"].connection.execute(
         "UPDATE artifacts SET execution_status='PARTIAL' WHERE id=?",

@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 3: strict model output contract."""
+
 import pytest
 from pydantic import ValidationError
 
@@ -27,16 +28,12 @@ def test_valid_payload_parses():
 
 def test_extra_field_rejected():
     with pytest.raises(ValidationError):
-        FindingTriageOutput.model_validate(
-            _valid_payload(unexpected="should fail")
-        )
+        FindingTriageOutput.model_validate(_valid_payload(unexpected="should fail"))
 
 
 def test_severity_field_rejected():
     with pytest.raises(ValidationError):
-        FindingTriageOutput.model_validate(
-            _valid_payload(severity="critical")
-        )
+        FindingTriageOutput.model_validate(_valid_payload(severity="critical"))
 
 
 def test_validation_status_field_rejected():
@@ -48,9 +45,7 @@ def test_validation_status_field_rejected():
 
 def test_scope_allowed_field_rejected():
     with pytest.raises(ValidationError):
-        FindingTriageOutput.model_validate(
-            _valid_payload(scope_allowed=True)
-        )
+        FindingTriageOutput.model_validate(_valid_payload(scope_allowed=True))
 
 
 def test_evidence_id_format_enforced():

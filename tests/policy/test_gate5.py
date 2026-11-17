@@ -1,17 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 5: audit chain integrity, external anchor, kill switch."""
-import sys
+
 import time
 
 import psutil
-import pytest
 
-from sentinel.audit.store import AuditStore, GENESIS
+from sentinel.audit.store import AuditStore
 from sentinel.audit.anchor import AnchorFile, verify_anchor
 from sentinel.runner.kill_switch import run_in_group, kill_group
 
 
 # ---- Audit chain ----
+
 
 def test_chain_appends_and_verifies(tmp_path):
     store = AuditStore(tmp_path / "a.db")
@@ -26,8 +26,9 @@ def test_chain_appends_and_verifies(tmp_path):
 def test_chain_detects_deletion(tmp_path):
     store = AuditStore(tmp_path / "a.db")
     for i in range(5):
-        store.append(engagement_id="e1", actor="op",
-                     event_type=f"e{i}", decision="allow")
+        store.append(
+            engagement_id="e1", actor="op", event_type=f"e{i}", decision="allow"
+        )
     store._db.connection.execute("DELETE FROM audit_events WHERE seq = 2")
     store._db.connection.commit()
     ok, at, _ = store.verify_chain()
@@ -39,9 +40,12 @@ def test_chain_detects_deletion(tmp_path):
 def test_chain_detects_modification(tmp_path):
     store = AuditStore(tmp_path / "a.db")
     for i in range(3):
-        store.append(engagement_id="e1", actor="op",
-                     event_type=f"e{i}", decision="allow")
-    store._db.connection.execute("UPDATE audit_events SET decision='deny' WHERE seq = 1")
+        store.append(
+            engagement_id="e1", actor="op", event_type=f"e{i}", decision="allow"
+        )
+    store._db.connection.execute(
+        "UPDATE audit_events SET decision='deny' WHERE seq = 1"
+    )
     store._db.connection.commit()
     ok, at, _ = store.verify_chain()
     assert ok is False
@@ -50,6 +54,7 @@ def test_chain_detects_modification(tmp_path):
 
 
 # ---- External anchor ----
+
 
 def test_anchor_passes_on_clean_db(tmp_path):
     store = AuditStore(tmp_path / "a.db")
@@ -73,8 +78,9 @@ def test_anchor_detects_db_replacement(tmp_path):
     # Simulate attacker deleting and recreating the DB with different content
     (tmp_path / "a.db").unlink()
     store2 = AuditStore(tmp_path / "a.db")
-    store2.append(engagement_id="e1", actor="attacker",
-                  event_type="cover", decision="allow")
+    store2.append(
+        engagement_id="e1", actor="attacker", event_type="cover", decision="allow"
+    )
     ok, reason = verify_anchor(store2, anchor)
     assert ok is False
     assert "mismatch" in reason or "truncated" in reason
@@ -82,6 +88,7 @@ def test_anchor_detects_db_replacement(tmp_path):
 
 
 # ---- Kill switch ----
+
 
 def _is_dead(pid: int) -> bool:
     try:

@@ -8,24 +8,24 @@ subprocess directly with pinned argv (same pattern as Gitleaks).
 Actually: Gitleaks follows the pattern of run_captured (bounded) directly
 because Class 0. Semgrep will mirror that exactly.
 """
+
 from __future__ import annotations
 
-import hashlib
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 from sentinel.audit.store import AuditStore
-from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.evidence.ingest import ingest_evidence, IngestResult
-from sentinel.evidence.redact import redact
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
 from sentinel.adapters._helpers import (
-    BinaryDigestError, run_isolated_scanner, verify_binary_digest,
-    execution_status_for_capture, ingest_incomplete_capture,
+    BinaryDigestError,
+    run_isolated_scanner,
+    verify_binary_digest,
+    execution_status_for_capture,
+    ingest_incomplete_capture,
 )
 
 
@@ -136,15 +136,17 @@ def parse_output(stdout: str) -> list[SemgrepFinding]:
         start = r.get("start", {}) or {}
         end = r.get("end", {}) or {}
         extra = r.get("extra", {}) or {}
-        findings.append(SemgrepFinding(
-            rule_id=rule_id,
-            severity=str(extra.get("severity", "") or ""),
-            file=path,
-            start_line=int(start.get("line", 0) or 0),
-            end_line=int(end.get("line", 0) or 0),
-            message=str(extra.get("message", "") or "")[:500],
-            category=str(extra.get("metadata", {}).get("category", "") or ""),
-        ))
+        findings.append(
+            SemgrepFinding(
+                rule_id=rule_id,
+                severity=str(extra.get("severity", "") or ""),
+                file=path,
+                start_line=int(start.get("line", 0) or 0),
+                end_line=int(end.get("line", 0) or 0),
+                message=str(extra.get("message", "") or "")[:500],
+                category=str(extra.get("metadata", {}).get("category", "") or ""),
+            )
+        )
     return findings
 
 
@@ -173,7 +175,8 @@ def run_semgrep(
             )
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            SEMGREP_TOOL_NAME, SEMGREP_VERSION,
+            SEMGREP_TOOL_NAME,
+            SEMGREP_VERSION,
         )
         if manifest is None:
             raise SemgrepAdapterError(
@@ -181,7 +184,6 @@ def run_semgrep(
             )
         if manifest.manifest.network_access:
             raise SemgrepAdapterError("semgrep manifest must be network_access=False")
-
 
         try:
             verify_binary_digest(
@@ -222,25 +224,34 @@ def run_semgrep(
         t0 = __import__("time").monotonic()
         config_path = Path(config).resolve(strict=True)
         capture = run_isolated_scanner(
-            argv, input_path=source, timeout_seconds=timeout_seconds,
+            argv,
+            input_path=source,
+            timeout_seconds=timeout_seconds,
             extra_readonly=(config_path,),
         )
         duration = __import__("time").monotonic() - t0
         if capture.timed_out or capture.truncated_stdout or capture.truncated_stderr:
             evidence = ingest_incomplete_capture(
-                db_obj, engagements_root=engagements_root,
+                db_obj,
+                engagements_root=engagements_root,
                 engagement_id=engagement_id,
                 source_name=f"semgrep_{SEMGREP_VERSION}_partial.txt",
-                actor=actor, capture=capture, event_type="semgrep_run",
+                actor=actor,
+                capture=capture,
+                event_type="semgrep_run",
             )
             findings = parse_output(capture.stdout)
             return SemgrepRunResult(
-                findings=findings, findings_count=len(findings),
-                evidence=evidence, process_exit_code=capture.returncode,
-                timed_out=capture.timed_out, truncated_stdout=capture.truncated_stdout,
+                findings=findings,
+                findings_count=len(findings),
+                evidence=evidence,
+                process_exit_code=capture.returncode,
+                timed_out=capture.timed_out,
+                truncated_stdout=capture.truncated_stdout,
                 truncated_stderr=capture.truncated_stderr,
                 execution_status=execution_status_for_capture(
-                    capture, successful_exit_codes=(0, 1)),
+                    capture, successful_exit_codes=(0, 1)
+                ),
             )
         stdout = capture.stdout
 
@@ -262,6 +273,7 @@ def run_semgrep(
             )
         try:
             import json as _json_strict
+
             _json_strict.loads(capture.stdout)
         except Exception as _je:
             raise SemgrepAdapterError(
@@ -273,7 +285,8 @@ def run_semgrep(
 
         # Ingest the raw JSON as evidence (hashed; redaction applied)
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"semgrep_{SEMGREP_VERSION}.json",
             content_type="application/json",
@@ -281,7 +294,8 @@ def run_semgrep(
             actor=actor,
             truncated_output=capture.truncated_stdout or capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
             stdout_bytes=len(capture.stdout.encode("utf-8")),
             stderr_bytes=len(capture.stderr.encode("utf-8")),
             output_limit_bytes=5 * 1024 * 1024 + 1024 * 1024,
@@ -293,7 +307,8 @@ def run_semgrep(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="semgrep_run",
             decision="ok" if capture.returncode in (0, 1) else "error",
             details={
@@ -309,13 +324,16 @@ def run_semgrep(
         )
 
         return SemgrepRunResult(
-            findings=findings, findings_count=len(findings),
-            evidence=evidence, process_exit_code=capture.returncode,
+            findings=findings,
+            findings_count=len(findings),
+            evidence=evidence,
+            process_exit_code=capture.returncode,
             timed_out=capture.timed_out,
             truncated_stdout=capture.truncated_stdout,
             truncated_stderr=capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
         )
     finally:
         if owns:

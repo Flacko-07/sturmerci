@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Knowledge CLI exposes current immutable revisions for review."""
+
 from __future__ import annotations
 
 from typer.testing import CliRunner
@@ -37,11 +38,14 @@ def test_knowledge_list_shows_entry_and_unreviewed_state(tmp_path, monkeypatch):
 
 
 def test_transient_nvd_failure_is_visible_and_does_not_mark_invalid(
-    tmp_path, monkeypatch,
+    tmp_path,
+    monkeypatch,
 ):
     db_path = tmp_path / "sentinel.sqlite3"
     monkeypatch.setattr(
-        cli_module, "_db", lambda: Database(db_path),
+        cli_module,
+        "_db",
+        lambda: Database(db_path),
     )
     from sentinel.knowledge import nvd
 
@@ -51,15 +55,19 @@ def test_transient_nvd_failure_is_visible_and_does_not_mark_invalid(
     monkeypatch.setattr(nvd, "fetch_cve", unavailable)
 
     result = CliRunner().invoke(
-        app, ["knowledge", "sync-cve", "CVE-2024-99999"],
+        app,
+        ["knowledge", "sync-cve", "CVE-2024-99999"],
     )
 
     assert result.exit_code == 1
     assert "UNVERIFIED" in result.output
     check_db = Database(db_path)
-    assert check_db.connection.execute(
-        "SELECT COUNT(*) FROM cve_entries WHERE cve_id='CVE-2024-99999'"
-    ).fetchone()[0] == 0
+    assert (
+        check_db.connection.execute(
+            "SELECT COUNT(*) FROM cve_entries WHERE cve_id='CVE-2024-99999'"
+        ).fetchone()[0]
+        == 0
+    )
     attempt = check_db.connection.execute(
         "SELECT outcome FROM cve_sync_attempts WHERE cve_id='CVE-2024-99999'"
     ).fetchone()

@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """Engagement state machine."""
+
 from __future__ import annotations
 
 ALLOWED = {
-    "draft":        {"scope_review", "closed"},
+    "draft": {"scope_review", "closed"},
     "scope_review": {"draft", "active", "closed"},
-    "active":       {"paused", "closed"},
-    "paused":       {"active", "closed"},
-    "closed":       set(),
+    "active": {"paused", "closed"},
+    "paused": {"active", "closed"},
+    "closed": set(),
 }
 
 

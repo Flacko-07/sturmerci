@@ -16,6 +16,7 @@ Design rationale:
 - Each example's evidence snippet comes from the SANITIZED artifact
   (artifacts.sanitized_path). The raw evidence never enters the prompt.
 """
+
 from __future__ import annotations
 
 import json
@@ -28,18 +29,55 @@ from sentinel.storage.db import Database, coerce_db
 
 DEFAULT_K = 2
 MAX_K = 3
-MIN_SCORE = 0.10      # below this, example is not relevant enough
+MIN_SCORE = 0.10  # below this, example is not relevant enough
 MAX_SNIPPET_CHARS = 500  # evidence excerpt per example
 
 # Small stopword list. Different from fts.py because here we want a
 # scoring signal, not a search query -- some words worth removing for
 # BM25 are worth keeping for Jaccard.
-_STOPWORDS = frozenset({
-    "a", "an", "the", "of", "and", "or", "in", "on", "at", "is", "are",
-    "was", "were", "be", "been", "to", "for", "with", "by", "from", "as",
-    "that", "this", "these", "those", "it", "its", "if", "then", "than",
-    "so", "such", "not", "no", "yes", "but", "however", "also", "which",
-})
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "of",
+        "and",
+        "or",
+        "in",
+        "on",
+        "at",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "to",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "that",
+        "this",
+        "these",
+        "those",
+        "it",
+        "its",
+        "if",
+        "then",
+        "than",
+        "so",
+        "such",
+        "not",
+        "no",
+        "yes",
+        "but",
+        "however",
+        "also",
+        "which",
+    }
+)
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_\-]*")
 
@@ -157,12 +195,14 @@ def retrieve_similar_examples(
                 )
             except OSError:
                 continue
-            scored.append(FewShotExample(
-                finding_id=row["id"],
-                evidence_snippet=_truncate(snippet),
-                output_json=_format_output_json(row),
-                score=score,
-            ))
+            scored.append(
+                FewShotExample(
+                    finding_id=row["id"],
+                    evidence_snippet=_truncate(snippet),
+                    output_json=_format_output_json(row),
+                    score=score,
+                )
+            )
 
         scored.sort(key=lambda e: e.score, reverse=True)
         return scored[:k]

@@ -1,9 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """CLI smoke tests. Uses typer's CliRunner for in-process invocation."""
+
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
@@ -46,8 +45,14 @@ def test_status_shows_zero_counts(runner, temp_db):
 def test_engagement_create_then_list(runner, temp_db):
     result = runner.invoke(
         cli_mod.app,
-        ["engagement", "create", "--program", "test-prog",
-         "--policy-url", "https://hackerone.com/test"],
+        [
+            "engagement",
+            "create",
+            "--program",
+            "test-prog",
+            "--policy-url",
+            "https://hackerone.com/test",
+        ],
     )
     assert result.exit_code == 0, result.output
     assert "Created" in result.output
@@ -73,9 +78,9 @@ def test_scope_add_then_list(runner, temp_db):
     # Fallback: query DB
     if eng_id is None or not eng_id.startswith("eng_"):
         db = Database(temp_db)
-        eng_id = db.connection.execute(
-            "SELECT id FROM engagements LIMIT 1"
-        ).fetchone()[0]
+        eng_id = db.connection.execute("SELECT id FROM engagements LIMIT 1").fetchone()[
+            0
+        ]
         db.close()
 
     r = runner.invoke(

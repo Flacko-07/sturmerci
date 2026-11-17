@@ -1,22 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 """Trivy adapter integration test with fake binary."""
+
 from __future__ import annotations
 
 import hashlib
 import tempfile
 from pathlib import Path
 
-import pytest
 
 from sentinel.engagement.store import EngagementStore
 from sentinel.adapters.trivy import (
-    run_trivy, parse_output, TrivyAdapterError,
+    run_trivy,
+    parse_output,
 )
 from sentinel.storage.db import Database
 from sentinel.tools.manifests import ManifestStore, ToolManifest
 
 
-FAKE_OUTPUT = '''{
+FAKE_OUTPUT = """{
   "Results": [
     {
       "Target": "/tmp/source/requirements.txt",
@@ -32,7 +33,7 @@ FAKE_OUTPUT = '''{
       ]
     }
   ]
-}'''
+}"""
 
 
 def _make_fake_trivy() -> Path:
@@ -41,10 +42,7 @@ def _make_fake_trivy() -> Path:
     script = bin_dir / "fake_trivy"
     NL = chr(10)
     script.write_text(
-        "#!/bin/sh" + NL
-        + "cat <<'JSON'" + NL
-        + FAKE_OUTPUT + NL
-        + "JSON" + NL
+        "#!/bin/sh" + NL + "cat <<'JSON'" + NL + FAKE_OUTPUT + NL + "JSON" + NL
     )
     script.chmod(0o755)
     return script
@@ -52,15 +50,21 @@ def _make_fake_trivy() -> Path:
 
 def _register(db, path: str) -> None:
     h = hashlib.sha256(Path(path).read_bytes()).hexdigest()
-    ManifestStore(db).register(ToolManifest(
-        tool_name="trivy", version="0.57.1",
-        executable_path=path, executable_sha256=h,
-        execution_class=0, network_access=False,
-        allowed_profiles=("dependency_scan",),
-        prohibited=("db_download",),
-        limits={"max_runtime_seconds": 60},
-        output_format="json",
-    ), actor="test")
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="trivy",
+            version="0.57.1",
+            executable_path=path,
+            executable_sha256=h,
+            execution_class=0,
+            network_access=False,
+            allowed_profiles=("dependency_scan",),
+            prohibited=("db_download",),
+            limits={"max_runtime_seconds": 60},
+            output_format="json",
+        ),
+        actor="test",
+    )
 
 
 def test_parse_output():
@@ -74,8 +78,11 @@ def test_run_trivy_happy_path(tmp_path, monkeypatch):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="trivy-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="trivy-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
@@ -89,7 +96,8 @@ def test_run_trivy_happy_path(tmp_path, monkeypatch):
     monkeypatch.setenv("TRIVY_CACHE_DIR", str(cache))
 
     result = run_trivy(
-        db=db, engagement_id=eng.id,
+        db=db,
+        engagement_id=eng.id,
         engagements_root=tmp_path / "engagements",
     )
     assert result.findings_count == 1

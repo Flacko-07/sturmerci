@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Evidence -> KB -> LLM -> persisted candidate finding. See docs/triage-pipeline-design.md."""
+
 from __future__ import annotations
 
 import json
@@ -79,15 +80,20 @@ def triage_artifact(
             )
 
         from sentinel.evidence.integrity import (
-            EvidenceIntegrityError, read_verified_sanitized,
+            EvidenceIntegrityError,
+            read_verified_sanitized,
         )
+
         try:
             sanitized_bytes = read_verified_sanitized(
-                db_obj, artifact_id=artifact_id, engagement_id=engagement_id,
+                db_obj,
+                artifact_id=artifact_id,
+                engagement_id=engagement_id,
                 sanitized_path=art.sanitized_path,
                 expected_sha256=art.sanitized_sha256,
                 expected_size=art.sanitized_size_bytes,
-                actor=actor, consumer="triage",
+                actor=actor,
+                consumer="triage",
             )
             sanitized = sanitized_bytes.decode("utf-8")
         except (EvidenceIntegrityError, UnicodeDecodeError) as e:
@@ -111,6 +117,7 @@ def triage_artifact(
         prompt_ctx: dict[str, str] = {}
         if use_fewshot:
             from sentinel.llm.fewshot import retrieve_similar_examples
+
             examples = retrieve_similar_examples(
                 db_obj,
                 engagement_id=engagement_id,
@@ -144,7 +151,7 @@ def triage_artifact(
         _deduped_evidence_ids = list(dict.fromkeys(output.evidence_ids))
 
         for ev_id in _deduped_evidence_ids:
-        # (bug 10 fix) dedupe — model can repeat evidence_ids
+            # (bug 10 fix) dedupe — model can repeat evidence_ids
             if ev_id == artifact_id:
                 valid_ev.append(ev_id)
                 continue
@@ -155,8 +162,7 @@ def triage_artifact(
                 dropped_ev += 1
         if not valid_ev:
             raise TriageError(
-                f"no valid evidence IDs in model output "
-                f"({dropped_ev} fabricated)"
+                f"no valid evidence IDs in model output ({dropped_ev} fabricated)"
             )
 
         # (v3-follow-up, NVD integration) Pass db so the reference
@@ -181,6 +187,7 @@ def triage_artifact(
         # it does not know what the KB recognizes.
         try:
             from sentinel.audit.model_runs import ModelRunStore as _MRS
+
             _MRS(db_obj).set_dropped_references(run_rec.run_id, dropped_refs)
         except Exception:
             pass  # not fatal; audit trail shows finding anyway
@@ -300,6 +307,7 @@ def _write_finding_with_audit(
     _asset_id: str | None = None
     if _artifact_row["source_name"]:
         import re as _re
+
         _sn = _artifact_row["source_name"]
         _assets = db.connection.execute(
             "SELECT id, canonical_value FROM approved_assets "
@@ -332,17 +340,30 @@ def _write_finding_with_audit(
                VALUES (?, ?, ?, ?, ?, ?, ?, 'candidate',
                        ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                finding_id, engagement_id, _asset_id, artifact_id, title,
-                output.candidate_category, output.confidence_hint,
-                output.summary, output.recommended_next_step,
+                finding_id,
+                engagement_id,
+                _asset_id,
+                artifact_id,
+                title,
+                output.candidate_category,
+                output.confidence_hint,
+                output.summary,
+                output.recommended_next_step,
                 json.dumps(list(output.missing_evidence)),
                 json.dumps(kept_references),
-                json.dumps([
-                    {"entry_id": h.entry_id, "title": h.title,
-                     "source_url": h.source_url}
-                    for h in kb_hits
-                ]),
-                model_run_id, now, actor,
+                json.dumps(
+                    [
+                        {
+                            "entry_id": h.entry_id,
+                            "title": h.title,
+                            "source_url": h.source_url,
+                        }
+                        for h in kb_hits
+                    ]
+                ),
+                model_run_id,
+                now,
+                actor,
             ),
         )
         # (v4.3) Persist per-CVE status. Same transaction as the
@@ -363,10 +384,17 @@ def _write_finding_with_audit(
                 "validation_status, validation_source, validation_timestamp_utc, "
                 "record_id, lookup_outcome, rejection_reason) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (finding_id, _ref, _detail["reference_type"],
-                 _detail["status"], _detail["source"],
-                 _detail["checked_at_utc"], _detail.get("record_id"),
-                 _detail["lookup_outcome"], _detail.get("rejection_reason")),
+                (
+                    finding_id,
+                    _ref,
+                    _detail["reference_type"],
+                    _detail["status"],
+                    _detail["source"],
+                    _detail["checked_at_utc"],
+                    _detail.get("record_id"),
+                    _detail["lookup_outcome"],
+                    _detail.get("rejection_reason"),
+                ),
             )
         for ev_id in valid_evidence_ids:
             conn.execute(
@@ -374,8 +402,7 @@ def _write_finding_with_audit(
                    (id, finding_id, artifact_id, evidence_id,
                     excerpt, created_at_utc)
                    VALUES (?, ?, ?, ?, '', ?)""",
-                ("fev_" + uuid.uuid4().hex[:16], finding_id,
-                 ev_id, ev_id, now),
+                ("fev_" + uuid.uuid4().hex[:16], finding_id, ev_id, ev_id, now),
             )
         # Audit inside the same transaction (AuditStore.append() uses
         # Database.commit() which is a no-op inside a transaction).
@@ -395,6 +422,7 @@ def _write_finding_with_audit(
         )
     return finding_id
 
+
 def _format_examples(examples: list) -> str:
     """Render a list of FewShotExample into the {examples} block text."""
     if not examples:
@@ -406,4 +434,3 @@ def _format_examples(examples: list) -> str:
         parts.append(f"Operator-validated output: {ex.output_json}")
         parts.append("")
     return "\n".join(parts)
-

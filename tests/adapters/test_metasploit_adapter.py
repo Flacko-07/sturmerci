@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """metasploit adapter tests — hermetic, mocks run_in_sandbox."""
+
 from __future__ import annotations
 
 import hashlib
@@ -13,12 +14,17 @@ import pytest
 
 import sentinel.runner.builtin_profiles  # noqa: F401
 from sentinel.adapters.metasploit import (
-    run_metasploit_check, run_metasploit_exploit,
-    parse_spool, MetasploitAdapterError,
-    _validate_check_module, _validate_exploit_module, _rc_text,
+    run_metasploit_check,
+    parse_spool,
+    MetasploitAdapterError,
+    _validate_check_module,
+    _validate_exploit_module,
+    _rc_text,
 )
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
@@ -123,12 +129,16 @@ def test_check_profile_builds_argv():
     argv = build_argv_for_profile(
         profile_name="metasploit/check",
         executable_path="/opt/metasploit-framework/bin/msfconsole",
-        params={"module": "auxiliary/scanner/http/title",
-                "hostname": "127.0.0.1", "port": 18080, "scheme": "http",
-                "rc_path": "/tmp/sentinel-msf-abc123/run.rc"},
+        params={
+            "module": "auxiliary/scanner/http/title",
+            "hostname": "127.0.0.1",
+            "port": 18080,
+            "scheme": "http",
+            "rc_path": "/tmp/sentinel-msf-abc123/run.rc",
+        },
     )
     assert argv[0] == "/opt/metasploit-framework/bin/msfconsole"
-    assert "-n" in argv            # DB-free
+    assert "-n" in argv  # DB-free
     assert "-q" in argv
     assert "-r" in argv
 
@@ -138,18 +148,26 @@ def test_profile_refuses_rc_outside_tmp():
         build_argv_for_profile(
             profile_name="metasploit/check",
             executable_path="/opt/metasploit-framework/bin/msfconsole",
-            params={"module": "auxiliary/scanner/http/title",
-                    "hostname": "127.0.0.1", "port": 18080, "scheme": "http",
-                    "rc_path": "/etc/passwd"},
+            params={
+                "module": "auxiliary/scanner/http/title",
+                "hostname": "127.0.0.1",
+                "port": 18080,
+                "scheme": "http",
+                "rc_path": "/etc/passwd",
+            },
         )
 
 
 def test_rc_text_check_has_no_sessions_kill():
     text = _rc_text(
         module="auxiliary/scanner/http/title",
-        hostname="127.0.0.1", port=18080, scheme="http",
-        spool_path=Path("/tmp/spool.txt"), is_exploit=False,
-        payload=None, options={},
+        hostname="127.0.0.1",
+        port=18080,
+        scheme="http",
+        spool_path=Path("/tmp/spool.txt"),
+        is_exploit=False,
+        payload=None,
+        options={},
     )
     assert "spool /tmp/spool.txt" in text
     assert "use auxiliary/scanner/http/title" in text
@@ -158,15 +176,19 @@ def test_rc_text_check_has_no_sessions_kill():
     assert "set SSL false" in text
     assert "check" in text
     assert "run" in text
-    assert "sessions -K" not in text   # check profile doesn't kill sessions
+    assert "sessions -K" not in text  # check profile doesn't kill sessions
 
 
 def test_rc_text_exploit_kills_sessions():
     text = _rc_text(
         module="exploit/windows/smb/ms17_010_eternalblue",
-        hostname="127.0.0.1", port=445, scheme="http",
-        spool_path=Path("/tmp/spool.txt"), is_exploit=True,
-        payload="windows/x64/meterpreter/reverse_tcp", options={},
+        hostname="127.0.0.1",
+        port=445,
+        scheme="http",
+        spool_path=Path("/tmp/spool.txt"),
+        is_exploit=True,
+        payload="windows/x64/meterpreter/reverse_tcp",
+        options={},
     )
     assert "set PAYLOAD windows/x64/meterpreter/reverse_tcp" in text
     assert "exploit -z" in text
@@ -176,9 +198,13 @@ def test_rc_text_exploit_kills_sessions():
 def test_rc_text_https_sets_ssl_true():
     text = _rc_text(
         module="auxiliary/scanner/http/title",
-        hostname="127.0.0.1", port=443, scheme="https",
-        spool_path=Path("/tmp/spool.txt"), is_exploit=False,
-        payload=None, options={},
+        hostname="127.0.0.1",
+        port=443,
+        scheme="https",
+        spool_path=Path("/tmp/spool.txt"),
+        is_exploit=False,
+        payload=None,
+        options={},
     )
     assert "set SSL true" in text
 
@@ -187,16 +213,21 @@ def _build_env(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="msf-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="msf-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
 
     astore = AssetStore(db)
     cid = astore.add_candidate(
-        engagement_id=eng.id, raw_value="127.0.0.1",
-        canonical_value="127.0.0.1", asset_type="ip",
+        engagement_id=eng.id,
+        raw_value="127.0.0.1",
+        canonical_value="127.0.0.1",
+        asset_type="ip",
         discovery_source="t",
     )
     aid = astore.promote_candidate(cid, approved_by="op")
@@ -204,20 +235,29 @@ def _build_env(tmp_path):
     fake_binary = "/bin/true"
     h = hashlib.sha256(Path(fake_binary).read_bytes()).hexdigest()
     from sentinel.adapters.metasploit import METASPLOIT_VERSION
-    ManifestStore(db).register(ToolManifest(
-        tool_name="metasploit", version=METASPLOIT_VERSION,
-        executable_path=fake_binary, executable_sha256=h,
-        execution_class=2, network_access=True,
-        allowed_profiles=("check", "exploit"),
-        prohibited=("-x", "-e"),
-        limits={"max_runtime_seconds": 600, "max_output_megabytes": 10},
-        output_format="text",
-    ), actor="test")
+
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="metasploit",
+            version=METASPLOIT_VERSION,
+            executable_path=fake_binary,
+            executable_sha256=h,
+            execution_class=2,
+            network_access=True,
+            allowed_profiles=("check", "exploit"),
+            prohibited=("-x", "-e"),
+            limits={"max_runtime_seconds": 600, "max_output_megabytes": 10},
+            output_format="text",
+        ),
+        actor="test",
+    )
 
     from sentinel.runner.sandbox_runner import (
-        _current_scope_lock_hash, _current_egress_profile_id,
+        _current_scope_lock_hash,
+        _current_egress_profile_id,
         _current_adapter_code_sha256,
     )
+
     adapter_path = Path("src/sentinel/adapters/metasploit.py")
     now = datetime.now(timezone.utc)
 
@@ -236,12 +276,13 @@ def _build_env(tmp_path):
             allowed_http_methods=["GET"],
             allowed_path_profile="default",
             operation_profile_id="check",
-            tool_name="metasploit", tool_version=METASPLOIT_VERSION,
+            tool_name="metasploit",
+            tool_version=METASPLOIT_VERSION,
             tool_executable_sha256=h,
             adapter_code_sha256=_current_adapter_code_sha256(adapter_path),
-            manifest_hash=ManifestStore(db).get_by_tool_version(
-                "metasploit", METASPLOIT_VERSION
-            ).manifest_hash,
+            manifest_hash=ManifestStore(db)
+            .get_by_tool_version("metasploit", METASPLOIT_VERSION)
+            .manifest_hash,
             egress_profile_id=_current_egress_profile_id(),
             normalized_arguments_hash="",
             request_rate_budget=5,
@@ -260,11 +301,11 @@ def _build_env(tmp_path):
         return appr.approval_id
 
     return {
-        "db": db, "eng_id": eng.id,
+        "db": db,
+        "eng_id": eng.id,
         "approval_check": _make("appr_msf_check"),
         "approval_exploit_nogate": _make("appr_msf_exploit_nogate"),
-        "approval_exploit_ok": _make("appr_msf_exploit_ok",
-                                      intrusive=True, lab=True),
+        "approval_exploit_ok": _make("appr_msf_exploit_ok", intrusive=True, lab=True),
         "engagements_root": tmp_path / "engagements",
     }
 
@@ -272,10 +313,15 @@ def _build_env(tmp_path):
 def test_run_metasploit_check_happy(tmp_path):
     env = _build_env(tmp_path)
     fake = SandboxResult(
-        stdout="", stderr="", exit_code=0,
-        duration_seconds=1.0, namespace_name="ns",
-        resolved_ip="127.0.0.1", audit_event_seq=1,
-        used_providers=(), resolved_ips=("127.0.0.1",),
+        stdout="",
+        stderr="",
+        exit_code=0,
+        duration_seconds=1.0,
+        namespace_name="ns",
+        resolved_ip="127.0.0.1",
+        audit_event_seq=1,
+        used_providers=(),
+        resolved_ips=("127.0.0.1",),
     )
     fixed = "testfixed1234567"
     # Pre-create the spool the adapter will read
@@ -283,14 +329,17 @@ def test_run_metasploit_check_happy(tmp_path):
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "spool.txt").write_text(SPOOL_TITLE)
     try:
-        with patch("sentinel.adapters.metasploit.run_in_sandbox",
-                   return_value=fake):
-            with patch.object(_uuid, "uuid4",
-                              return_value=type("U", (), {"hex": fixed})):
+        with patch("sentinel.adapters.metasploit.run_in_sandbox", return_value=fake):
+            with patch.object(
+                _uuid, "uuid4", return_value=type("U", (), {"hex": fixed})
+            ):
                 result = run_metasploit_check(
-                    db=env["db"], engagement_id=env["eng_id"],
+                    db=env["db"],
+                    engagement_id=env["eng_id"],
                     approval_id=env["approval_check"],
-                    target_hostname="127.0.0.1", port=18080, scheme="http",
+                    target_hostname="127.0.0.1",
+                    port=18080,
+                    scheme="http",
                     module="auxiliary/scanner/http/title",
                     engagements_root=env["engagements_root"],
                 )
@@ -306,9 +355,12 @@ def test_check_rejects_exploit_module(tmp_path):
     env = _build_env(tmp_path)
     with pytest.raises(MetasploitAdapterError, match="not permitted"):
         run_metasploit_check(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_check"],
-            target_hostname="127.0.0.1", port=18080, scheme="http",
+            target_hostname="127.0.0.1",
+            port=18080,
+            scheme="http",
             module="exploit/windows/smb/ms17_010_eternalblue",
             engagements_root=env["engagements_root"],
         )
@@ -319,12 +371,16 @@ def test_check_rejects_exploit_module(tmp_path):
 # batch-2: RC injection defenses
 # ====================================================================
 
+
 def test_rc_text_rejects_newline_in_options():
     with pytest.raises(MetasploitAdapterError, match="newline"):
         _rc_text(
             module="auxiliary/scanner/http/title",
-            hostname="127.0.0.1", port=18080, scheme="http",
-            spool_path=Path("/tmp/spool.txt"), is_exploit=False,
+            hostname="127.0.0.1",
+            port=18080,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=False,
             payload=None,
             options={"VHOST": "good.example\nset PAYLOAD evil"},
         )
@@ -334,8 +390,11 @@ def test_rc_text_rejects_newline_in_option_value_cr():
     with pytest.raises(MetasploitAdapterError, match="newline"):
         _rc_text(
             module="auxiliary/scanner/http/title",
-            hostname="127.0.0.1", port=18080, scheme="http",
-            spool_path=Path("/tmp/spool.txt"), is_exploit=False,
+            hostname="127.0.0.1",
+            port=18080,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=False,
             payload=None,
             options={"VHOST": "good\rset EXPLOIT"},
         )
@@ -345,8 +404,11 @@ def test_rc_text_rejects_newline_in_payload():
     with pytest.raises(MetasploitAdapterError, match="newline"):
         _rc_text(
             module="exploit/windows/smb/ms17_010_eternalblue",
-            hostname="127.0.0.1", port=445, scheme="http",
-            spool_path=Path("/tmp/spool.txt"), is_exploit=True,
+            hostname="127.0.0.1",
+            port=445,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=True,
             payload="windows/x64/meterpreter/reverse_tcp\nsessions -K",
             options={},
         )
@@ -364,8 +426,11 @@ def test_rc_text_rejects_shell_metacharacters_in_options():
         with pytest.raises(MetasploitAdapterError, match="outside"):
             _rc_text(
                 module="auxiliary/scanner/http/title",
-                hostname="127.0.0.1", port=18080, scheme="http",
-                spool_path=Path("/tmp/spool.txt"), is_exploit=False,
+                hostname="127.0.0.1",
+                port=18080,
+                scheme="http",
+                spool_path=Path("/tmp/spool.txt"),
+                is_exploit=False,
                 payload=None,
                 options={"VHOST": bad},
             )
@@ -375,8 +440,11 @@ def test_rc_text_rejects_option_key_not_in_allowlist():
     with pytest.raises(MetasploitAdapterError, match="not in allowed"):
         _rc_text(
             module="auxiliary/scanner/http/title",
-            hostname="127.0.0.1", port=18080, scheme="http",
-            spool_path=Path("/tmp/spool.txt"), is_exploit=False,
+            hostname="127.0.0.1",
+            port=18080,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=False,
             payload=None,
             options={"PAYLOAD": "cmd/unix/generic"},
         )
@@ -386,8 +454,11 @@ def test_rc_text_rejects_malformed_payload():
     with pytest.raises(MetasploitAdapterError, match="does not match"):
         _rc_text(
             module="exploit/windows/smb/ms17_010_eternalblue",
-            hostname="127.0.0.1", port=445, scheme="http",
-            spool_path=Path("/tmp/spool.txt"), is_exploit=True,
+            hostname="127.0.0.1",
+            port=445,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=True,
             payload="malformed-payload",
             options={},
         )
@@ -397,9 +468,13 @@ def test_rc_text_rejects_newline_in_hostname():
     with pytest.raises(MetasploitAdapterError, match="newline"):
         _rc_text(
             module="auxiliary/scanner/http/title",
-            hostname="127.0.0.1\nset PAYLOAD evil", port=18080,
-            scheme="http", spool_path=Path("/tmp/spool.txt"),
-            is_exploit=False, payload=None, options={},
+            hostname="127.0.0.1\nset PAYLOAD evil",
+            port=18080,
+            scheme="http",
+            spool_path=Path("/tmp/spool.txt"),
+            is_exploit=False,
+            payload=None,
+            options={},
         )
 
 
@@ -410,6 +485,7 @@ def test_check_module_allowlist_refuses_unreviewed():
 
 def test_prepare_run_dir_refuses_when_setfacl_missing(monkeypatch):
     from sentinel.adapters import metasploit as msf_mod
+
     monkeypatch.setattr("shutil.which", lambda n: None)
     with pytest.raises(MetasploitAdapterError, match="setfacl not found"):
         msf_mod._prepare_run_dir()

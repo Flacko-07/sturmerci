@@ -1,23 +1,24 @@
 # SPDX-License-Identifier: Apache-2.0
 """Semgrep adapter integration test with fake binary."""
+
 from __future__ import annotations
 
 import hashlib
-import os
 from pathlib import Path
 
 import pytest
 
 from sentinel.engagement.store import EngagementStore
 from sentinel.adapters.semgrep import (
-    run_semgrep, parse_output, SemgrepFinding,
+    run_semgrep,
+    parse_output,
     SemgrepAdapterError,
 )
 from sentinel.storage.db import Database
 from sentinel.tools.manifests import ManifestStore, ToolManifest
 
 
-FAKE_OUTPUT = '''{
+FAKE_OUTPUT = """{
   "results": [
     {
       "check_id": "python.lang.security.audit.eval-use",
@@ -31,20 +32,18 @@ FAKE_OUTPUT = '''{
       }
     }
   ]
-}'''
+}"""
 
 
 def _make_fake_semgrep(tmp_path: Path) -> Path:
     import tempfile
+
     bin_dir = Path(tempfile.mkdtemp(prefix="sentinel-test-bin-sg-"))
     bin_dir.chmod(0o755)
     script = bin_dir / "fake_semgrep"
     NL = chr(10)
     script.write_text(
-        "#!/bin/sh" + NL
-        + "cat <<'JSON'" + NL
-        + FAKE_OUTPUT + NL
-        + "JSON" + NL
+        "#!/bin/sh" + NL + "cat <<'JSON'" + NL + FAKE_OUTPUT + NL + "JSON" + NL
     )
     script.chmod(0o755)
     return script
@@ -53,9 +52,12 @@ def _make_fake_semgrep(tmp_path: Path) -> Path:
 def _register_manifest(db, binary_path: str, version: str = "1.90.0") -> None:
     h = hashlib.sha256(Path(binary_path).read_bytes()).hexdigest()
     m = ToolManifest(
-        tool_name="semgrep", version=version,
-        executable_path=binary_path, executable_sha256=h,
-        execution_class=0, network_access=False,
+        tool_name="semgrep",
+        version=version,
+        executable_path=binary_path,
+        executable_sha256=h,
+        execution_class=0,
+        network_access=False,
         allowed_profiles=("source_static_analysis",),
         prohibited=("remote_rules",),
         limits={"max_runtime_seconds": 60},
@@ -84,8 +86,11 @@ def test_run_semgrep_happy_path(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="semgrep-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="semgrep-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
@@ -102,7 +107,8 @@ def test_run_semgrep_happy_path(tmp_path):
     config.write_text("rules: []\n", encoding="utf-8")
 
     result = run_semgrep(
-        db=db, engagement_id=eng.id,
+        db=db,
+        engagement_id=eng.id,
         engagements_root=tmp_path / "engagements",
         scan_subdir="source",
         config=str(config),
@@ -117,8 +123,11 @@ def test_refuses_on_traversal(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="x", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="x",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
@@ -127,7 +136,8 @@ def test_refuses_on_traversal(tmp_path):
 
     with pytest.raises(SemgrepAdapterError, match="escapes"):
         run_semgrep(
-            db=db, engagement_id=eng.id,
+            db=db,
+            engagement_id=eng.id,
             engagements_root=tmp_path / "engagements",
             scan_subdir="../..",
         )
@@ -138,15 +148,19 @@ def test_refuses_on_inactive_engagement(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="x", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="x",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     # Still in draft
     binary = _make_fake_semgrep(tmp_path)
     _register_manifest(db, str(binary))
     with pytest.raises(SemgrepAdapterError, match="not active"):
         run_semgrep(
-            db=db, engagement_id=eng.id,
+            db=db,
+            engagement_id=eng.id,
             engagements_root=tmp_path / "engagements",
         )
     db.close()

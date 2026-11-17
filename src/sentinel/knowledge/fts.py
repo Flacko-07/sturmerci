@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """FTS5 search over the knowledge corpus. See docs/knowledge-base-design.md."""
+
 from __future__ import annotations
 
 import re
@@ -11,14 +12,60 @@ from sentinel.storage.db import Database, coerce_db
 
 # Common English stopwords. Removing them from queries means
 # "how to test for SQL injection" searches for "SQL AND injection".
-_STOPWORDS = frozenset({
-    "a", "an", "the", "how", "to", "for", "of", "and", "or", "in", "on",
-    "at", "is", "are", "was", "were", "be", "been", "being", "with", "by",
-    "from", "about", "what", "which", "who", "why", "when", "where",
-    "test", "testing", "check", "checking", "verify", "verifying",
-    "find", "finding", "detect", "detecting", "do", "does", "can", "should",
-    "i", "we", "you", "me", "my", "our", "your",
-})
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "how",
+        "to",
+        "for",
+        "of",
+        "and",
+        "or",
+        "in",
+        "on",
+        "at",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "with",
+        "by",
+        "from",
+        "about",
+        "what",
+        "which",
+        "who",
+        "why",
+        "when",
+        "where",
+        "test",
+        "testing",
+        "check",
+        "checking",
+        "verify",
+        "verifying",
+        "find",
+        "finding",
+        "detect",
+        "detecting",
+        "do",
+        "does",
+        "can",
+        "should",
+        "i",
+        "we",
+        "you",
+        "me",
+        "my",
+        "our",
+        "your",
+    }
+)
 
 _IDENTIFIER_RE = re.compile(r"\b(?:CVE-\d{4}-\d{4,}|CWE-\d+)\b", re.IGNORECASE)
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_\-]+")
@@ -128,6 +175,7 @@ def search(
         if owns:
             db_obj.close()
 
+
 def _sanitize_query_or(query: str) -> str:
     """OR-joined MATCH expression over the same token set as _sanitize_query.
 
@@ -150,4 +198,3 @@ def _sanitize_query_or(query: str) -> str:
         seen.add(t)
         parts.append(f'"{t}"')
     return " OR ".join(parts)
-

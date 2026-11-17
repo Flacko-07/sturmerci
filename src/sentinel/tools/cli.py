@@ -16,10 +16,10 @@ old version; new approvals use the new version. No in-place rotation
 because approvals bind to `(tool_name, tool_version)` and to
 `manifest_hash`.
 """
+
 from __future__ import annotations
 
 import hashlib
-import shutil
 from pathlib import Path
 from typing import Callable
 
@@ -51,26 +51,37 @@ def register_tool_cli(
     @tool_app.command("register")
     def register(
         executable_path: str = typer.Argument(
-            ..., help="Absolute path to the tool's executable.",
+            ...,
+            help="Absolute path to the tool's executable.",
         ),
-        tool: str = typer.Option(..., "--tool",
-            help="Tool name (matches adapter's TOOL_NAME constant)."),
-        version: str = typer.Option(..., "--version",
-            help="Tool version string (matched by adapter)."),
-        execution_class: int = typer.Option(0, "--class",
-            help="Execution class 0..3 (ECR §5.2)."),
-        network: bool = typer.Option(False, "--network",
-            help="Manifest declares network_access=True."),
-        profile: list[str] = typer.Option(None, "--profile",
-            help="Allowed operation profile. Repeat for multiple."),
-        provider: list[str] = typer.Option(None, "--provider",
+        tool: str = typer.Option(
+            ..., "--tool", help="Tool name (matches adapter's TOOL_NAME constant)."
+        ),
+        version: str = typer.Option(
+            ..., "--version", help="Tool version string (matched by adapter)."
+        ),
+        execution_class: int = typer.Option(
+            0, "--class", help="Execution class 0..3 (ECR §5.2)."
+        ),
+        network: bool = typer.Option(
+            False, "--network", help="Manifest declares network_access=True."
+        ),
+        profile: list[str] = typer.Option(
+            None, "--profile", help="Allowed operation profile. Repeat for multiple."
+        ),
+        provider: list[str] = typer.Option(
+            None,
+            "--provider",
             help="Declared infrastructure endpoint (e.g. crt.sh). "
-                 "Repeat for multiple. Does NOT authorize the provider "
-                 "for an engagement — that needs --provider on "
-                 "`sentinel approval issue`."),
-        prohibited: list[str] = typer.Option(None, "--prohibited",
-            help="Token refused at runtime (single-token match). "
-                 "Repeat for multiple."),
+            "Repeat for multiple. Does NOT authorize the provider "
+            "for an engagement — that needs --provider on "
+            "`sentinel approval issue`.",
+        ),
+        prohibited: list[str] = typer.Option(
+            None,
+            "--prohibited",
+            help="Token refused at runtime (single-token match). Repeat for multiple.",
+        ),
         max_runtime_seconds: int = typer.Option(60, "--max-runtime-seconds"),
         max_output_megabytes: int = typer.Option(10, "--max-output-megabytes"),
         output_format: str = typer.Option("text", "--format"),
@@ -97,10 +108,7 @@ def register_tool_cli(
                 raise typer.Exit(1)
 
             if not (0 <= execution_class <= 3):
-                console.print(
-                    f"[red]--class must be 0..3[/] "
-                    f"(got {execution_class})"
-                )
+                console.print(f"[red]--class must be 0..3[/] (got {execution_class})")
                 raise typer.Exit(1)
 
             if execution_class >= 2 and not network:
@@ -115,17 +123,17 @@ def register_tool_cli(
             existing = store.get_by_tool_version(tool, version)
             if existing is not None:
                 console.print(
-                    f"[red]Already registered:[/] {tool} {version} "
-                    f"(id={existing.id})."
+                    f"[red]Already registered:[/] {tool} {version} (id={existing.id})."
                 )
                 console.print(
-                    f"Register a new --version instead; approvals bind to "
-                    f"(tool_name, tool_version) and manifest_hash."
+                    "Register a new --version instead; approvals bind to "
+                    "(tool_name, tool_version) and manifest_hash."
                 )
                 raise typer.Exit(1)
 
             manifest = ToolManifest(
-                tool_name=tool, version=version,
+                tool_name=tool,
+                version=version,
                 executable_path=str(p.resolve()),
                 executable_sha256=h,
                 execution_class=execution_class,
@@ -142,17 +150,14 @@ def register_tool_cli(
             reg = store.register(manifest, actor=actor)
             ok, reason = store.verify(reg.id)
             if not ok:
-                console.print(
-                    f"[red]Registered but verify() failed:[/] {reason}"
-                )
+                console.print(f"[red]Registered but verify() failed:[/] {reason}")
                 raise typer.Exit(1)
 
             console.print(f"[green]Registered[/] {reg.id}")
             console.print(f"  tool         : {tool} {version}")
             console.print(f"  binary       : {p.resolve()}")
             console.print(f"  sha256       : {h[:16]}...")
-            console.print(f"  class        : {execution_class}  "
-                          f"network: {network}")
+            console.print(f"  class        : {execution_class}  network: {network}")
             console.print(f"  profiles     : {list(profile or [])}")
             console.print(f"  providers    : {list(provider or [])}")
             console.print(f"  prohibited   : {list(prohibited or [])}")
@@ -177,23 +182,17 @@ def register_tool_cli(
                     "--tool <name> --version <v>"
                 )
                 return
-            console.print(
-                f"[green]{len(rows)} manifest(s) registered[/]"
-            )
+            console.print(f"[green]{len(rows)} manifest(s) registered[/]")
             console.print()
             for r in rows:
-                console.print(
-                    f"  {r['tool_name']} {r['version']}"
-                )
+                console.print(f"  {r['tool_name']} {r['version']}")
                 console.print(
                     f"    id={r['id']}  class={r['execution_class']}  "
                     f"network={bool(r['network_access'])}  "
                     f"sha256={r['sha16']}..."
                 )
                 console.print(f"    binary={r['executable_path']}")
-                console.print(
-                    f"    manifest_hash={r['manifest_hash'][:16]}..."
-                )
+                console.print(f"    manifest_hash={r['manifest_hash'][:16]}...")
         finally:
             db.close()
 
@@ -208,16 +207,12 @@ def register_tool_cli(
             store = ManifestStore(db)
             reg = store.get_by_tool_version(tool, version)
             if reg is None:
-                console.print(
-                    f"[red]No manifest[/] for {tool} {version}"
-                )
+                console.print(f"[red]No manifest[/] for {tool} {version}")
                 raise typer.Exit(1)
 
             ok, reason = store.verify(reg.id)
             if not ok:
-                console.print(
-                    f"[red]Manifest row integrity FAILED:[/] {reason}"
-                )
+                console.print(f"[red]Manifest row integrity FAILED:[/] {reason}")
                 raise typer.Exit(1)
             console.print(
                 f"[green]Manifest row integrity OK[/] "
@@ -226,24 +221,16 @@ def register_tool_cli(
 
             binary = Path(reg.manifest.executable_path)
             if not binary.is_file():
-                console.print(
-                    f"[red]Binary missing:[/] {binary}"
-                )
+                console.print(f"[red]Binary missing:[/] {binary}")
                 raise typer.Exit(1)
             try:
                 actual = hashlib.sha256(binary.read_bytes()).hexdigest()
             except OSError as e:
-                console.print(
-                    f"[red]Cannot read binary:[/] {e}"
-                )
+                console.print(f"[red]Cannot read binary:[/] {e}")
                 raise typer.Exit(1)
             if actual != reg.manifest.executable_sha256:
-                console.print(
-                    f"[red]Binary digest MISMATCH[/]"
-                )
-                console.print(
-                    f"  expected: {reg.manifest.executable_sha256[:16]}..."
-                )
+                console.print("[red]Binary digest MISMATCH[/]")
+                console.print(f"  expected: {reg.manifest.executable_sha256[:16]}...")
                 console.print(f"  actual  : {actual[:16]}...")
                 console.print(
                     f"  The binary at {binary} was modified after "
@@ -251,10 +238,7 @@ def register_tool_cli(
                     f"restore the pinned binary."
                 )
                 raise typer.Exit(1)
-            console.print(
-                f"[green]Binary digest OK[/] "
-                f"({binary} -> {actual[:16]}...)"
-            )
+            console.print(f"[green]Binary digest OK[/] ({binary} -> {actual[:16]}...)")
         finally:
             db.close()
 
@@ -262,8 +246,9 @@ def register_tool_cli(
     def deregister(
         tool: str = typer.Argument(...),
         version: str = typer.Argument(...),
-        yes: bool = typer.Option(False, "--yes", "-y",
-            help="Skip interactive confirmation."),
+        yes: bool = typer.Option(
+            False, "--yes", "-y", help="Skip interactive confirmation."
+        ),
     ) -> None:
         """Remove a manifest. Refused if any approval still references it."""
         db = db_factory()
@@ -271,9 +256,7 @@ def register_tool_cli(
             store = ManifestStore(db)
             reg = store.get_by_tool_version(tool, version)
             if reg is None:
-                console.print(
-                    f"[red]No manifest[/] for {tool} {version}"
-                )
+                console.print(f"[red]No manifest[/] for {tool} {version}")
                 raise typer.Exit(1)
 
             active_approvals = db.connection.execute(
@@ -290,12 +273,9 @@ def register_tool_cli(
                 for a in active_approvals[:5]:
                     console.print(f"  {a['approval_id']}")
                 if len(active_approvals) > 5:
-                    console.print(
-                        f"  ... and {len(active_approvals) - 5} more"
-                    )
+                    console.print(f"  ... and {len(active_approvals) - 5} more")
                 console.print(
-                    "  Revoke them first: "
-                    "sentinel approval revoke <approval_id>"
+                    "  Revoke them first: sentinel approval revoke <approval_id>"
                 )
                 raise typer.Exit(1)
 
@@ -315,9 +295,7 @@ def register_tool_cli(
                     "DELETE FROM tool_manifests WHERE id = ?",
                     (reg.id,),
                 )
-            console.print(
-                f"[green]Deregistered[/] {tool} {version} ({reg.id})"
-            )
+            console.print(f"[green]Deregistered[/] {tool} {version} ({reg.id})")
         finally:
             db.close()
 

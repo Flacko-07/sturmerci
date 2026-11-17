@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Ingest knowledge documents (frontmatter + body) into the FTS index."""
+
 from __future__ import annotations
 
 import hashlib
@@ -7,17 +8,23 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from uuid import uuid4
 
 from sentinel.storage.db import Database, coerce_db
 
 
 _FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*\n(.*)\Z", re.DOTALL)
 
-REQUIRED_FIELDS = frozenset({
-    "title", "topic", "source_url", "publisher", "version",
-    "license", "review_status",
-})
+REQUIRED_FIELDS = frozenset(
+    {
+        "title",
+        "topic",
+        "source_url",
+        "publisher",
+        "version",
+        "license",
+        "review_status",
+    }
+)
 
 
 class IngestError(ValueError):
@@ -56,7 +63,10 @@ def _entry_id_for_url(source_url: str) -> str:
 
 
 def ingest_file(
-    db: Database | Path | str, path: Path, *, ingested_by: str = "operator",
+    db: Database | Path | str,
+    path: Path,
+    *,
+    ingested_by: str = "operator",
 ) -> str:
     """Ingest one knowledge file. Returns entry_id. Idempotent."""
     db_obj, owns = coerce_db(db)
@@ -67,15 +77,17 @@ def ingest_file(
         # license/review_status/publisher changes but body does not, the
         # hash changes and the ingest path replaces the row. Without
         # this, a metadata-only edit is silently ignored.
-        hash_input = "\n".join([
-            meta.get("title", ""),
-            meta.get("topic", ""),
-            meta.get("source_url", ""),
-            meta.get("version", ""),
-            meta.get("license", ""),
-            meta.get("publisher", ""),
-            body,
-        ])
+        hash_input = "\n".join(
+            [
+                meta.get("title", ""),
+                meta.get("topic", ""),
+                meta.get("source_url", ""),
+                meta.get("version", ""),
+                meta.get("license", ""),
+                meta.get("publisher", ""),
+                body,
+            ]
+        )
         content_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
         entry_id = _entry_id_for_url(meta["source_url"])
 
@@ -95,9 +107,12 @@ def ingest_file(
         if current is not None and current["content_hash"] == content_hash:
             return entry_id  # unchanged
 
-        revision_id = "kr_" + hashlib.sha256(
-            f"{entry_id}:{content_hash}".encode("utf-8")
-        ).hexdigest()[:24]
+        revision_id = (
+            "kr_"
+            + hashlib.sha256(f"{entry_id}:{content_hash}".encode("utf-8")).hexdigest()[
+                :24
+            ]
+        )
         ingested_at = datetime.now(timezone.utc).isoformat()
 
         with db_obj.transaction() as conn:
@@ -107,27 +122,52 @@ def ingest_file(
                     "(id, title, topic, source_url, version, license, "
                     "content_hash, review_status, publisher, current_revision_id) "
                     "VALUES (?, ?, ?, ?, ?, ?, ?, 'unverified', ?, NULL)",
-                    (entry_id, meta["title"], meta["topic"],
-                     meta["source_url"], meta["version"], meta["license"],
-                     content_hash, meta.get("publisher", "")),
+                    (
+                        entry_id,
+                        meta["title"],
+                        meta["topic"],
+                        meta["source_url"],
+                        meta["version"],
+                        meta["license"],
+                        content_hash,
+                        meta.get("publisher", ""),
+                    ),
                 )
             conn.execute(
                 "INSERT INTO knowledge_revisions "
                 "(revision_id, entry_id, title, topic, source_url, publisher, "
                 "version, license, body, content_hash, ingested_by, ingested_at_utc) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (revision_id, entry_id, meta["title"], meta["topic"],
-                 meta["source_url"], meta.get("publisher", ""),
-                 meta["version"], meta["license"], body, content_hash,
-                 ingested_by.strip(), ingested_at),
+                (
+                    revision_id,
+                    entry_id,
+                    meta["title"],
+                    meta["topic"],
+                    meta["source_url"],
+                    meta.get("publisher", ""),
+                    meta["version"],
+                    meta["license"],
+                    body,
+                    content_hash,
+                    ingested_by.strip(),
+                    ingested_at,
+                ),
             )
             conn.execute(
                 "UPDATE knowledge_entries SET title=?, topic=?, source_url=?, "
                 "version=?, license=?, content_hash=?, review_status='unverified', "
                 "publisher=?, current_revision_id=? WHERE id=?",
-                (meta["title"], meta["topic"], meta["source_url"],
-                 meta["version"], meta["license"], content_hash,
-                 meta.get("publisher", ""), revision_id, entry_id),
+                (
+                    meta["title"],
+                    meta["topic"],
+                    meta["source_url"],
+                    meta["version"],
+                    meta["license"],
+                    content_hash,
+                    meta.get("publisher", ""),
+                    revision_id,
+                    entry_id,
+                ),
             )
             conn.execute(
                 "INSERT INTO knowledge_fts (entry_id, title, body, topic) "
@@ -141,7 +181,10 @@ def ingest_file(
 
 
 def ingest_directory(
-    db: Database | Path | str, directory: Path, *, ingested_by: str = "operator",
+    db: Database | Path | str,
+    directory: Path,
+    *,
+    ingested_by: str = "operator",
 ) -> tuple[int, int]:
     """Ingest every .md file under `directory`, recursively.
 
@@ -160,6 +203,8 @@ def ingest_directory(
             processed += 1
         except IngestError as e:
             errors += 1
-            print(f"[kb-ingest] skipped {path.relative_to(directory)}: {e}",
-                  file=sys.stderr)
+            print(
+                f"[kb-ingest] skipped {path.relative_to(directory)}: {e}",
+                file=sys.stderr,
+            )
     return processed, errors

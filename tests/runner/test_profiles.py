@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 """Operation profile unit tests (M6-P0-A)."""
+
 from __future__ import annotations
 
 import pytest
 
 from sentinel.runner import builtin_profiles as _bp  # noqa: F401
 from sentinel.runner.profiles import (
-    build_argv_for_profile, get_profile, all_profiles, ProfileError,
+    build_argv_for_profile,
+    get_profile,
+    all_profiles,
+    ProfileError,
 )
 
 
@@ -52,9 +56,18 @@ def test_nmap_produces_expected_argv():
     assert argv[-1] == "x.test"
 
 
-@pytest.mark.parametrize("forbidden", [
-    "--script", "-sC", "-sV", "-A", "-O", "-sU", "-sS",
-])
+@pytest.mark.parametrize(
+    "forbidden",
+    [
+        "--script",
+        "-sC",
+        "-sV",
+        "-A",
+        "-O",
+        "-sU",
+        "-sS",
+    ],
+)
 def test_nmap_prohibited_flags_listed(forbidden):
     profile = get_profile("nmap/tcp_connect_scan")
     for p in profile.prohibited_flags:
@@ -87,8 +100,10 @@ def test_httpx_only_get_head():
             profile_name="httpx/inventory",
             executable_path="/usr/bin/httpx",
             params={
-                "hostname": "x.test", "port": 443,
-                "scheme": "https", "method": method,
+                "hostname": "x.test",
+                "port": 443,
+                "scheme": "https",
+                "method": method,
             },
         )
         assert "-u" in argv
@@ -97,8 +112,10 @@ def test_httpx_only_get_head():
             profile_name="httpx/inventory",
             executable_path="/usr/bin/httpx",
             params={
-                "hostname": "x.test", "port": 443,
-                "scheme": "https", "method": "POST",
+                "hostname": "x.test",
+                "port": 443,
+                "scheme": "https",
+                "method": "POST",
             },
         )
 
@@ -125,19 +142,18 @@ def test_subfinder_prohibited_flags_checked():
 
 # --- M7-P0-E: httpx method reaches binary ---
 
+
 def test_m7p0e_httpx_get_and_head_produce_different_argv():
     """M7-P0-E: -x METHOD must be in argv; GET != HEAD."""
     get_argv = build_argv_for_profile(
         profile_name="httpx/inventory",
         executable_path="/usr/bin/httpx",
-        params={"hostname": "x.test", "port": 443,
-                "scheme": "https", "method": "GET"},
+        params={"hostname": "x.test", "port": 443, "scheme": "https", "method": "GET"},
     )
     head_argv = build_argv_for_profile(
         profile_name="httpx/inventory",
         executable_path="/usr/bin/httpx",
-        params={"hostname": "x.test", "port": 443,
-                "scheme": "https", "method": "HEAD"},
+        params={"hostname": "x.test", "port": 443, "scheme": "https", "method": "HEAD"},
     )
     assert get_argv != head_argv
     assert "-x" in get_argv

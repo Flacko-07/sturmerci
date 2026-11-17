@@ -8,22 +8,36 @@ This is the boundary that makes M6-P0-A (runner enforces argv) real.
 Registration happens at import. Import this module once, early
 (sandbox_runner imports it at top level).
 """
+
 from __future__ import annotations
 
 from typing import Any
 
 from sentinel.runner.profiles import (
-    OperationProfile, register_profile,
+    OperationProfile,
+    register_profile,
 )
 
 
 # --- Nmap ---
 
 NMAP_PROHIBITED_FLAGS = (
-    "--script", "-sC", "-sV", "-A", "-O",
-    "-sU", "-sS", "-sA", "-sW", "-sM",
-    "--traceroute", "--osscan-limit", "--osscan-guess",
-    "-sI", "-b", "--interactive",
+    "--script",
+    "-sC",
+    "-sV",
+    "-A",
+    "-O",
+    "-sU",
+    "-sS",
+    "-sA",
+    "-sW",
+    "-sM",
+    "--traceroute",
+    "--osscan-limit",
+    "--osscan-guess",
+    "-sI",
+    "-b",
+    "--interactive",
 )
 
 
@@ -40,35 +54,51 @@ def _build_nmap_tcp_connect(executable: str, params: dict[str, Any]) -> list[str
         "-sT",
         "-Pn",
         "-n",
-        "--max-rate", str(max_rate),
-        "-p", ",".join(str(p) for p in sorted(ports)),
-        "-oX", "-",
+        "--max-rate",
+        str(max_rate),
+        "-p",
+        ",".join(str(p) for p in sorted(ports)),
+        "-oX",
+        "-",
         target,
     ]
 
 
-register_profile(OperationProfile(
-    name="nmap/tcp_connect_scan",
-    builder=_build_nmap_tcp_connect,
-    required_params=frozenset({"target", "ports", "max_rate"}),
-    prohibited_flags=NMAP_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="nmap/tcp_connect_scan",
+        builder=_build_nmap_tcp_connect,
+        required_params=frozenset({"target", "ports", "max_rate"}),
+        prohibited_flags=NMAP_PROHIBITED_FLAGS,
+    )
+)
 
 
 # --- httpx ---
 
 HTTPX_PROHIBITED_FLAGS = (
-    "-path", "-paths", "-p",
-    "-follow-redirects", "-fr",
-    "-H", "-header",
+    "-path",
+    "-paths",
+    "-p",
+    "-follow-redirects",
+    "-fr",
+    "-H",
+    "-header",
     "-body",
-    "-X", "-method",       # -x IS the method flag, but see builder note below
-    "-x", "-http-proxy", "-proxy",
-    "-websocket", "-ws",
+    "-X",
+    "-method",  # -x IS the method flag, but see builder note below
+    "-x",
+    "-http-proxy",
+    "-proxy",
+    "-websocket",
+    "-ws",
     "-auth",
-    "-dc", "-dashboard",
-    "-sr", "-store-response",
-    "-screenshot", "-ss",
+    "-dc",
+    "-dashboard",
+    "-sr",
+    "-store-response",
+    "-screenshot",
+    "-ss",
 )
 
 
@@ -85,8 +115,10 @@ def _build_httpx_inventory(executable: str, params: dict[str, Any]) -> list[str]
     # Verify the pinned 1.6.10 binary accepts `-x` (run: `httpx -h | grep -x`).
     return [
         executable,
-        "-u", url,
-        "-x", method,
+        "-u",
+        url,
+        "-x",
+        method,
         "-silent",
         "-json",
         "-nc",
@@ -94,21 +126,25 @@ def _build_httpx_inventory(executable: str, params: dict[str, Any]) -> list[str]
     ]
 
 
-register_profile(OperationProfile(
-    name="httpx/inventory",
-    builder=_build_httpx_inventory,
-    required_params=frozenset({"hostname", "port", "scheme", "method"}),
-    # Note: "-x" is in prohibited_flags because the current httpx adapter
-    # does not pass a method flag to the binary. Fix tracked in M7-P0-E;
-    # once that is implemented, remove "-x" from prohibited list.
-    prohibited_flags=tuple(f for f in HTTPX_PROHIBITED_FLAGS if f != "-x"),
-))
+register_profile(
+    OperationProfile(
+        name="httpx/inventory",
+        builder=_build_httpx_inventory,
+        required_params=frozenset({"hostname", "port", "scheme", "method"}),
+        # Note: "-x" is in prohibited_flags because the current httpx adapter
+        # does not pass a method flag to the binary. Fix tracked in M7-P0-E;
+        # once that is implemented, remove "-x" from prohibited list.
+        prohibited_flags=tuple(f for f in HTTPX_PROHIBITED_FLAGS if f != "-x"),
+    )
+)
 
 
 # --- Subfinder ---
 
 SUBFINDER_PROHIBITED_FLAGS = (
-    "-all", "-recursive", "-active",
+    "-all",
+    "-recursive",
+    "-active",
     "-silent-json",  # we want -silent -json as separate tokens
 )
 
@@ -125,20 +161,24 @@ def _build_subfinder_passive(executable: str, params: dict[str, Any]) -> list[st
         )
     return [
         executable,
-        "-d", domain,
-        "-sources", ",".join(sources),
+        "-d",
+        domain,
+        "-sources",
+        ",".join(sources),
         "-silent",
         "-json",
         "-nc",
     ]
 
 
-register_profile(OperationProfile(
-    name="subfinder/passive_crtsh",
-    builder=_build_subfinder_passive,
-    required_params=frozenset({"domain", "sources"}),
-    prohibited_flags=SUBFINDER_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="subfinder/passive_crtsh",
+        builder=_build_subfinder_passive,
+        required_params=frozenset({"domain", "sources"}),
+        prohibited_flags=SUBFINDER_PROHIBITED_FLAGS,
+    )
+)
 
 # --- WHOIS ---
 
@@ -155,12 +195,14 @@ def _build_whois_target_lookup(executable: str, params: dict) -> list[str]:
     return [executable, "--server", server, domain]
 
 
-register_profile(OperationProfile(
-    name="whois/target_lookup",
-    builder=_build_whois_target_lookup,
-    required_params=frozenset({"target_domain", "server"}),
-    prohibited_flags=WHOIS_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="whois/target_lookup",
+        builder=_build_whois_target_lookup,
+        required_params=frozenset({"target_domain", "server"}),
+        prohibited_flags=WHOIS_PROHIBITED_FLAGS,
+    )
+)
 
 # --- dig ---
 
@@ -180,30 +222,36 @@ def _build_dig_dns_lookup(executable: str, params: dict) -> list[str]:
         raise ValueError(f"resolver contains forbidden chars: {resolver!r}")
     return [
         executable,
-        "+noall", "+answer",
+        "+noall",
+        "+answer",
         f"@{resolver}",
         domain,
         record_type,
     ]
 
 
-register_profile(OperationProfile(
-    name="dig/dns_lookup",
-    builder=_build_dig_dns_lookup,
-    required_params=frozenset({"domain", "resolver", "record_type"}),
-    prohibited_flags=DIG_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="dig/dns_lookup",
+        builder=_build_dig_dns_lookup,
+        required_params=frozenset({"domain", "resolver", "record_type"}),
+        prohibited_flags=DIG_PROHIBITED_FLAGS,
+    )
+)
 
 # --- ffuf ---
 
 FFUF_PROHIBITED_FLAGS = (
-    "-x",              # proxy
-    "-H",              # arbitrary headers (auth injection risk)
-    "-b",              # cookies
-    "POST", "PUT", "PATCH", "DELETE",  # method value must be GET
-    "-d",              # body
-    "-input-cmd",      # shell exec
-    "-request",        # raw request file
+    "-x",  # proxy
+    "-H",  # arbitrary headers (auth injection risk)
+    "-b",  # cookies
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",  # method value must be GET
+    "-d",  # body
+    "-input-cmd",  # shell exec
+    "-request",  # raw request file
     "-request-proto",  # raw request protocol override
 )
 
@@ -226,25 +274,38 @@ def _build_ffuf_dir_discovery(executable: str, params: dict) -> list[str]:
     target_url = f"{scheme}://{hostname}:{port}/FUZZ"
     return [
         executable,
-        "-u", target_url,
-        "-w", wordlist,
-        "-of", "json",
-        "-o", "/dev/stdout",
-        "-mc", "200,201,202,204,301,302,307,308,401,403,405",
-        "-rate", str(rate),
-        "-t", "1",
-        "-timeout", "10",
+        "-u",
+        target_url,
+        "-w",
+        wordlist,
+        "-of",
+        "json",
+        "-o",
+        "/dev/stdout",
+        "-mc",
+        "200,201,202,204,301,302,307,308,401,403,405",
+        "-rate",
+        str(rate),
+        "-t",
+        "1",
+        "-timeout",
+        "10",
         "-s",
-        "-X", "GET",
+        "-X",
+        "GET",
     ]
 
 
-register_profile(OperationProfile(
-    name="ffuf/dir_discovery",
-    builder=_build_ffuf_dir_discovery,
-    required_params=frozenset({"hostname", "port", "scheme", "wordlist_path", "rate"}),
-    prohibited_flags=FFUF_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="ffuf/dir_discovery",
+        builder=_build_ffuf_dir_discovery,
+        required_params=frozenset(
+            {"hostname", "port", "scheme", "wordlist_path", "rate"}
+        ),
+        prohibited_flags=FFUF_PROHIBITED_FLAGS,
+    )
+)
 
 # --- nikto ---
 
@@ -252,10 +313,13 @@ register_profile(OperationProfile(
 # be expressed by the current token-match layer; the builder is the
 # authority for tuning value (set(tunings) <= set("123")).
 NIKTO_PROHIBITED_FLAGS = (
-    "-evasion", "-useproxy", "-update",
-    "-list-plugins", "-dbcheck",
-    "-D",       # directory brute (overlaps with ffuf)
-    "-vhost",   # vhost brute
+    "-evasion",
+    "-useproxy",
+    "-update",
+    "-list-plugins",
+    "-dbcheck",
+    "-D",  # directory brute (overlaps with ffuf)
+    "-vhost",  # vhost brute
     "-output",  # we use -o /dev/stdout
 )
 
@@ -287,35 +351,56 @@ def _build_nikto_web_scan(executable: str, params: dict) -> list[str]:
     argv = [executable, "-h", hostname, "-p", str(port)]
     if scheme == "https":
         argv.append("-ssl")
-    argv.extend([
-        "-Format", "json",
-        "-o", "/dev/stdout",
-        "-Tuning", tunings,
-        "-Pause", str(pause),
-        "-timeout", "10",
-        "-maxtime", f"{maxtime}s",
-        "-ask", "no",
-        "-nointeractive",
-        "-useragent", "Sentinel/0.1",
-    ])
+    argv.extend(
+        [
+            "-Format",
+            "json",
+            "-o",
+            "/dev/stdout",
+            "-Tuning",
+            tunings,
+            "-Pause",
+            str(pause),
+            "-timeout",
+            "10",
+            "-maxtime",
+            f"{maxtime}s",
+            "-ask",
+            "no",
+            "-nointeractive",
+            "-useragent",
+            "Sentinel/0.1",
+        ]
+    )
     return argv
 
 
-register_profile(OperationProfile(
-    name="nikto/web_server_scan",
-    builder=_build_nikto_web_scan,
-    required_params=frozenset({
-        "hostname", "port", "scheme", "tunings",
-        "pause_seconds", "max_time_seconds",
-    }),
-    prohibited_flags=NIKTO_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="nikto/web_server_scan",
+        builder=_build_nikto_web_scan,
+        required_params=frozenset(
+            {
+                "hostname",
+                "port",
+                "scheme",
+                "tunings",
+                "pause_seconds",
+                "max_time_seconds",
+            }
+        ),
+        prohibited_flags=NIKTO_PROHIBITED_FLAGS,
+    )
+)
 
 # --- scion ---
 
 SCION_PROHIBITED_FLAGS = (
-    "--verify", "--output", "--out-file",
-    "--compare", "--scope-file",
+    "--verify",
+    "--output",
+    "--out-file",
+    "--compare",
+    "--scope-file",
 )
 
 
@@ -326,42 +411,86 @@ def _build_scion_passive(executable: str, params: dict) -> list[str]:
     return [executable, "--subs-only", "--silent", "--no-color", domain]
 
 
-register_profile(OperationProfile(
-    name="scion/passive_discovery",
-    builder=_build_scion_passive,
-    required_params=frozenset({"domain"}),
-    prohibited_flags=SCION_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="scion/passive_discovery",
+        builder=_build_scion_passive,
+        required_params=frozenset({"domain"}),
+        prohibited_flags=SCION_PROHIBITED_FLAGS,
+    )
+)
 
 # --- sqlmap (Class 3, detection-only) ---
 
 SQLMAP_PROHIBITED_FLAGS = (
     # Post-exploitation
-    "--os-shell", "--os-pwn", "--os-cmd", "--os-smbrelay",
-    "--sql-shell", "--sql-query", "--sql-file",
-    "--file-read", "--file-write", "--file-dest",
-    "--eval", "--shell", "--api",
+    "--os-shell",
+    "--os-pwn",
+    "--os-cmd",
+    "--os-smbrelay",
+    "--sql-shell",
+    "--sql-query",
+    "--sql-file",
+    "--file-read",
+    "--file-write",
+    "--file-dest",
+    "--eval",
+    "--shell",
+    "--api",
     # Data extraction (proof-only mode)
-    "--dump", "--dump-all", "--dump-format",
-    "--passwords", "--common-tables", "--common-columns", "--common-files",
-    "--dbs", "--tables", "--columns", "--schema", "--count",
-    "--reg-read", "--reg-add", "--reg-del",
-    "--priv-esc", "--roles",
+    "--dump",
+    "--dump-all",
+    "--dump-format",
+    "--passwords",
+    "--common-tables",
+    "--common-columns",
+    "--common-files",
+    "--dbs",
+    "--tables",
+    "--columns",
+    "--schema",
+    "--count",
+    "--reg-read",
+    "--reg-add",
+    "--reg-del",
+    "--priv-esc",
+    "--roles",
     # Method/header override (data via --data instead)
-    "--method", "--cookie", "--cookie-del", "--headers",
-    "--user-agent", "--referer", "--random-agent",
-    "--auth-type", "--auth-cred", "--auth-file",
+    "--method",
+    "--cookie",
+    "--cookie-del",
+    "--headers",
+    "--user-agent",
+    "--referer",
+    "--random-agent",
+    "--auth-type",
+    "--auth-cred",
+    "--auth-file",
     # Evasion
-    "--tamper", "--proxy", "--tor", "--check-tor",
+    "--tamper",
+    "--proxy",
+    "--tor",
+    "--check-tor",
     # Interactive / scanning breadth
-    "--wizard", "--update", "--forms", "--crawl", "--crawl-exclude",
+    "--wizard",
+    "--update",
+    "--forms",
+    "--crawl",
+    "--crawl-exclude",
     # Temp dir override
     "--temp-dir",
     # Lock down risk knobs (builder enforces level=1 risk=1 technique=B)
-    "--level=2", "--level=3", "--level=4", "--level=5",
-    "--risk=2", "--risk=3",
-    "--technique=U", "--technique=E", "--technique=S",
-    "--technique=T", "--technique=Q",
+    "--level=2",
+    "--level=3",
+    "--level=4",
+    "--level=5",
+    "--risk=2",
+    "--risk=3",
+    "--technique=U",
+    "--technique=E",
+    "--technique=S",
+    "--technique=T",
+    "--technique=Q",
 )
 
 
@@ -383,7 +512,9 @@ def _build_sqlmap_detect(executable: str, params: dict) -> list[str]:
     if scheme not in ("http", "https"):
         raise ValueError(f"scheme must be http or https: {scheme!r}")
     if not out_dir.startswith("/tmp/sentinel-sqlmap-"):
-        raise ValueError(f"output_dir must be under /tmp/sentinel-sqlmap-*: {out_dir!r}")
+        raise ValueError(
+            f"output_dir must be under /tmp/sentinel-sqlmap-*: {out_dir!r}"
+        )
     if technique != "B":
         raise ValueError(
             f"technique must be 'B' (boolean-blind only); got {technique!r}"
@@ -399,43 +530,68 @@ def _build_sqlmap_detect(executable: str, params: dict) -> list[str]:
 
     argv = [
         executable,
-        "-u", url,
+        "-u",
+        url,
         "--batch",
         "--flush-session",
         f"--output-dir={out_dir}",
-        "--level=1", "--risk=1",
+        "--level=1",
+        "--risk=1",
         f"--technique={technique}",
         "--threads=1",
-        f"--delay={int(float(delay))}" if float(delay).is_integer() else f"--delay={delay}",
-        "--timeout=10", "--retries=0",
-        "-v", "1",
+        f"--delay={int(float(delay))}"
+        if float(delay).is_integer()
+        else f"--delay={delay}",
+        "--timeout=10",
+        "--retries=0",
+        "-v",
+        "1",
     ]
     if data:
         argv.append(f"--data={data}")
     return argv
 
 
-register_profile(OperationProfile(
-    name="sqlmap/detect",
-    builder=_build_sqlmap_detect,
-    required_params=frozenset({
-        "hostname", "port", "scheme", "path", "query",
-        "output_dir", "delay_seconds", "technique",
-    }),
-    prohibited_flags=SQLMAP_PROHIBITED_FLAGS,
-    execution_class=3,   # (P0.3) explicit — detection-only but still intrusive
-    requires_param_binding=True,
-    param_binding_keys=frozenset({
-        "hostname", "port", "scheme", "path", "query",
-        "delay_seconds", "technique",
-    }),
-))
+register_profile(
+    OperationProfile(
+        name="sqlmap/detect",
+        builder=_build_sqlmap_detect,
+        required_params=frozenset(
+            {
+                "hostname",
+                "port",
+                "scheme",
+                "path",
+                "query",
+                "output_dir",
+                "delay_seconds",
+                "technique",
+            }
+        ),
+        prohibited_flags=SQLMAP_PROHIBITED_FLAGS,
+        execution_class=3,  # (P0.3) explicit — detection-only but still intrusive
+        requires_param_binding=True,
+        param_binding_keys=frozenset(
+            {
+                "hostname",
+                "port",
+                "scheme",
+                "path",
+                "query",
+                "delay_seconds",
+                "technique",
+            }
+        ),
+    )
+)
 
 # --- nuclei ---
 
 NUCLEI_TEMPLATES_VERSION = "10.4.0"
 NUCLEI_TEMPLATES_DIR = f"/opt/sentinel-templates/nuclei-v{NUCLEI_TEMPLATES_VERSION}"
-NUCLEI_TEMPLATES_HASH = "9918870bc62dbfc4870fb36301af79067d90294e0f126c87f029540395ed0503"
+NUCLEI_TEMPLATES_HASH = (
+    "9918870bc62dbfc4870fb36301af79067d90294e0f126c87f029540395ed0503"
+)
 
 NUCLEI_ALLOW_TAGS = "exposure,misconfig,tech,panel,takeover,ssl,dns"
 NUCLEI_EXCLUDE_TAGS = (
@@ -444,11 +600,22 @@ NUCLEI_EXCLUDE_TAGS = (
 )
 
 NUCLEI_PROHIBITED_FLAGS = (
-    "-headless", "-code", "-fuzz", "-dast",
-    "-interactsh-url", "-interactsh-token",
-    "-sf", "-store-response", "-sr", "-store-resp",
-    "-update", "-update-templates",
-    "-markdown-export", "-json-export", "-html-export", "-sarif-export",
+    "-headless",
+    "-code",
+    "-fuzz",
+    "-dast",
+    "-interactsh-url",
+    "-interactsh-token",
+    "-sf",
+    "-store-response",
+    "-sr",
+    "-store-resp",
+    "-update",
+    "-update-templates",
+    "-markdown-export",
+    "-json-export",
+    "-html-export",
+    "-sarif-export",
 )
 
 
@@ -473,16 +640,23 @@ def _build_nuclei_scan(executable: str, params: dict) -> list[str]:
     target = f"{scheme}://{host}:{port}"
     return [
         executable,
-        "-u", target,
+        "-u",
+        target,
         "-jsonl",
         "-silent",
         "-no-color",
-        "-t", NUCLEI_TEMPLATES_DIR,
-        "-tags", NUCLEI_ALLOW_TAGS,
-        "-exclude-tags", NUCLEI_EXCLUDE_TAGS,
-        "-rate-limit", str(rate),
-        "-timeout", "10",
-        "-retries", "1",
+        "-t",
+        NUCLEI_TEMPLATES_DIR,
+        "-tags",
+        NUCLEI_ALLOW_TAGS,
+        "-exclude-tags",
+        NUCLEI_EXCLUDE_TAGS,
+        "-rate-limit",
+        str(rate),
+        "-timeout",
+        "10",
+        "-retries",
+        "1",
         "-disable-update-check",
         # NOTE: do NOT pass -headless / -code here. Nuclei's defaults are
         # already false, and those tokens are in NUCLEI_PROHIBITED_FLAGS —
@@ -491,14 +665,22 @@ def _build_nuclei_scan(executable: str, params: dict) -> list[str]:
     ]
 
 
-register_profile(OperationProfile(
-    name="nuclei/scan",
-    builder=_build_nuclei_scan,
-    required_params=frozenset({
-        "hostname", "port", "scheme", "rate_limit", "timeout_seconds",
-    }),
-    prohibited_flags=NUCLEI_PROHIBITED_FLAGS,
-))
+register_profile(
+    OperationProfile(
+        name="nuclei/scan",
+        builder=_build_nuclei_scan,
+        required_params=frozenset(
+            {
+                "hostname",
+                "port",
+                "scheme",
+                "rate_limit",
+                "timeout_seconds",
+            }
+        ),
+        prohibited_flags=NUCLEI_PROHIBITED_FLAGS,
+    )
+)
 
 # --- metasploit ---
 #
@@ -514,10 +696,11 @@ register_profile(OperationProfile(
 
 METASPLOIT_PROHIBITED_FLAGS = (
     # Session/daemon flags we don't want in argv
-    "-x", "-e",       # -x/-e run commands, but we drive via -r <rc>
-    "--rc",           # duplicate of -r (we use -r)
-    "--batch",        # we drive via rc; -q is the quiet flag
-    "-k",             # shutdown other consoles
+    "-x",
+    "-e",  # -x/-e run commands, but we drive via -r <rc>
+    "--rc",  # duplicate of -r (we use -r)
+    "--batch",  # we drive via rc; -q is the quiet flag
+    "-k",  # shutdown other consoles
     # Post-exploitation modules cannot be distinguished by flag, only by
     # module name. The adapter filters the module against an allowlist
     # (auxiliary/scanner/*, auxiliary/gather/*). A prohibited module name
@@ -549,27 +732,43 @@ def _build_metasploit_exploit(executable: str, params: dict) -> list[str]:
     return _build_metasploit_check(executable, params)
 
 
-register_profile(OperationProfile(
-    name="metasploit/check",
-    builder=_build_metasploit_check,
-    required_params=frozenset({
-        "module", "hostname", "port", "scheme", "rc_path",
-    }),
-    prohibited_flags=METASPLOIT_PROHIBITED_FLAGS,
-    execution_class=2,
-))
+register_profile(
+    OperationProfile(
+        name="metasploit/check",
+        builder=_build_metasploit_check,
+        required_params=frozenset(
+            {
+                "module",
+                "hostname",
+                "port",
+                "scheme",
+                "rc_path",
+            }
+        ),
+        prohibited_flags=METASPLOIT_PROHIBITED_FLAGS,
+        execution_class=2,
+    )
+)
 
-register_profile(OperationProfile(
-    name="metasploit/exploit",
-    builder=_build_metasploit_exploit,
-    required_params=frozenset({
-        "module", "hostname", "port", "scheme", "rc_path",
-    }),
-    prohibited_flags=METASPLOIT_PROHIBITED_FLAGS,
-    execution_class=3,
-    requires_param_binding=True,
-    param_binding_keys=frozenset({"module", "hostname", "port", "scheme"}),
-))
+register_profile(
+    OperationProfile(
+        name="metasploit/exploit",
+        builder=_build_metasploit_exploit,
+        required_params=frozenset(
+            {
+                "module",
+                "hostname",
+                "port",
+                "scheme",
+                "rc_path",
+            }
+        ),
+        prohibited_flags=METASPLOIT_PROHIBITED_FLAGS,
+        execution_class=3,
+        requires_param_binding=True,
+        param_binding_keys=frozenset({"module", "hostname", "port", "scheme"}),
+    )
+)
 
 # --- ZAP ---
 #
@@ -580,14 +779,14 @@ register_profile(OperationProfile(
 # Active scan (-a) prohibited.
 
 ZAP_PROHIBITED_FLAGS = (
-    "-a",              # active scan (attack — Class 3)
-    "-j",              # ajax spider (headless browser, slow, risky)
-    "-s",              # short output (breaks XML parse assumptions)
-    "-z",              # arbitrary ZAP options (huge surface)
-    "-d",              # debug logging (may leak env)
-    "-update",         # network update
-    "-quickurl",       # quick scan mode (includes active)
-    "-quickout",       # quick scan output
+    "-a",  # active scan (attack — Class 3)
+    "-j",  # ajax spider (headless browser, slow, risky)
+    "-s",  # short output (breaks XML parse assumptions)
+    "-z",  # arbitrary ZAP options (huge surface)
+    "-d",  # debug logging (may leak env)
+    "-update",  # network update
+    "-quickurl",  # quick scan mode (includes active)
+    "-quickout",  # quick scan output
     "-quickprogress",  # quick scan progress
 )
 
@@ -606,7 +805,9 @@ def _build_zap_baseline(executable: str, params: dict) -> list[str]:
     if not report_xml or not report_xml.startswith("/tmp/sentinel-zap-"):
         raise ValueError(f"report_xml_path must be /tmp/sentinel-zap-*: {report_xml!r}")
     if not report_html or not report_html.startswith("/tmp/sentinel-zap-"):
-        raise ValueError(f"report_html_path must be /tmp/sentinel-zap-*: {report_html!r}")
+        raise ValueError(
+            f"report_html_path must be /tmp/sentinel-zap-*: {report_html!r}"
+        )
     if not isinstance(scan_minutes, int) or not (1 <= scan_minutes <= 15):
         raise ValueError(f"scan_timeout_minutes out of range: {scan_minutes!r}")
     if not isinstance(spider_minutes, int) or not (1 <= spider_minutes <= 5):
@@ -614,24 +815,35 @@ def _build_zap_baseline(executable: str, params: dict) -> list[str]:
 
     return [
         executable,
-        "-t", target_url,
-        "-x", report_xml,
-        "-r", report_html,
-        "-m", str(spider_minutes),
+        "-t",
+        target_url,
+        "-x",
+        report_xml,
+        "-r",
+        report_html,
+        "-m",
+        str(spider_minutes),
         "-I",
     ]
 
 
-register_profile(OperationProfile(
-    name="zap/baseline_scan",
-    builder=_build_zap_baseline,
-    required_params=frozenset({
-        "target_url", "report_xml_path", "report_html_path",
-        "scan_timeout_minutes", "spider_minutes",
-    }),
-    prohibited_flags=ZAP_PROHIBITED_FLAGS,
-    execution_class=2,
-))
+register_profile(
+    OperationProfile(
+        name="zap/baseline_scan",
+        builder=_build_zap_baseline,
+        required_params=frozenset(
+            {
+                "target_url",
+                "report_xml_path",
+                "report_html_path",
+                "scan_timeout_minutes",
+                "spider_minutes",
+            }
+        ),
+        prohibited_flags=ZAP_PROHIBITED_FLAGS,
+        execution_class=2,
+    )
+)
 
 # --- theHarvester ---
 #
@@ -643,15 +855,15 @@ register_profile(OperationProfile(
 # Writes JSON to <out_base>.json. Adapter reads it after subprocess.
 
 THEHARVESTER_PROHIBITED_FLAGS = (
-    "-a",   # use ALL sources (pulls in API-key sources, active probes)
-    "-s",   # Shodan (needs key)
-    "-p",   # port scan (active)
-    "-e",   # DNS brute force (active)
-    "-t",   # DNS TLD brute (active)
-    "-n",   # DNS lookup resolution (active)
-    "-c",   # DNS resolution (active)
-    "-u",   # DNS bruteforce extension (active)
-    "-r",   # recursive (active)
+    "-a",  # use ALL sources (pulls in API-key sources, active probes)
+    "-s",  # Shodan (needs key)
+    "-p",  # port scan (active)
+    "-e",  # DNS brute force (active)
+    "-t",  # DNS TLD brute (active)
+    "-n",  # DNS lookup resolution (active)
+    "-c",  # DNS resolution (active)
+    "-u",  # DNS bruteforce extension (active)
+    "-r",  # recursive (active)
 )
 
 
@@ -682,10 +894,12 @@ def _build_theharvester_passive(executable: str, params: dict) -> list[str]:
     return argv
 
 
-register_profile(OperationProfile(
-    name="theharvester/passive_discovery",
-    builder=_build_theharvester_passive,
-    required_params=frozenset({"domain", "sources", "limit", "out_base"}),
-    prohibited_flags=THEHARVESTER_PROHIBITED_FLAGS,
-    execution_class=1,
-))
+register_profile(
+    OperationProfile(
+        name="theharvester/passive_discovery",
+        builder=_build_theharvester_passive,
+        required_params=frozenset({"domain", "sources", "limit", "out_base"}),
+        prohibited_flags=THEHARVESTER_PROHIBITED_FLAGS,
+        execution_class=1,
+    )
+)

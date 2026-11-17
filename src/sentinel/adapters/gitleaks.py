@@ -6,11 +6,11 @@ docs/gitleaks-schema-8.30.1.md. Rejects any report whose Secret or Match
 field is not the literal string "REDACTED" -- defense-in-depth against
 --redact silently failing.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-import subprocess
 import tempfile
 import time
 from dataclasses import dataclass
@@ -21,7 +21,8 @@ from sentinel.storage.db import Database, coerce_db
 from sentinel.engagement.store import EngagementStore
 from sentinel.tools.manifests import ManifestStore
 from sentinel.adapters._helpers import (
-    execution_status_for_capture, ingest_incomplete_capture,
+    execution_status_for_capture,
+    ingest_incomplete_capture,
     run_isolated_scanner,
 )
 from sentinel.evidence.ingest import ingest_evidence, IngestResult
@@ -31,13 +32,28 @@ from sentinel.audit.store import AuditStore
 
 REDACTED = "REDACTED"
 
-REQUIRED_FIELDS = frozenset({
-    "RuleID", "Description", "File",
-    "StartLine", "EndLine", "StartColumn", "EndColumn",
-    "Match", "Secret", "Entropy",
-    "Author", "Email", "Date", "Commit", "Message",
-    "SymlinkFile", "Tags", "Fingerprint",
-})
+REQUIRED_FIELDS = frozenset(
+    {
+        "RuleID",
+        "Description",
+        "File",
+        "StartLine",
+        "EndLine",
+        "StartColumn",
+        "EndColumn",
+        "Match",
+        "Secret",
+        "Entropy",
+        "Author",
+        "Email",
+        "Date",
+        "Commit",
+        "Message",
+        "SymlinkFile",
+        "Tags",
+        "Fingerprint",
+    }
+)
 
 
 class AdapterError(Exception):
@@ -232,42 +248,60 @@ def run_gitleaks(
             cmd = [
                 manifest.manifest.executable_path,
                 "detect",
-                "--source", str(source),
-                "--report-format", "json",
-                "--report-path", str(report_path),
+                "--source",
+                str(source),
+                "--report-format",
+                "json",
+                "--report-path",
+                str(report_path),
                 "--redact",
                 "--no-git",
-                "--exit-code", "0",
+                "--exit-code",
+                "0",
                 "--no-banner",
             ]
             timeout = int(manifest.manifest.limits.get("max_runtime_seconds", 300))
             t0 = time.monotonic()
             capture = run_isolated_scanner(
-                cmd, input_path=source, timeout_seconds=timeout,
+                cmd,
+                input_path=source,
+                timeout_seconds=timeout,
                 writable_dir=report_dir,
             )
             duration = time.monotonic() - t0
 
-            if capture.timed_out or capture.truncated_stdout or capture.truncated_stderr:
+            if (
+                capture.timed_out
+                or capture.truncated_stdout
+                or capture.truncated_stderr
+            ):
                 report_bytes = b""
                 if report_path.is_file():
-                    cap_bytes = int(manifest.manifest.limits.get(
-                        "max_output_megabytes", 25
-                    )) * 1024 * 1024
+                    cap_bytes = (
+                        int(manifest.manifest.limits.get("max_output_megabytes", 25))
+                        * 1024
+                        * 1024
+                    )
                     with report_path.open("rb") as report_file:
                         report_bytes = report_file.read(cap_bytes + 1)
                     if len(report_bytes) > cap_bytes:
                         report_bytes = report_bytes[:cap_bytes]
                 evidence = ingest_incomplete_capture(
-                    db_obj, engagements_root=engagements_root,
+                    db_obj,
+                    engagements_root=engagements_root,
                     engagement_id=engagement_id,
                     source_name=f"gitleaks_{tool_version}_partial.txt",
-                    actor=actor, capture=capture, event_type="gitleaks_run",
+                    actor=actor,
+                    capture=capture,
+                    event_type="gitleaks_run",
                     content_bytes=report_bytes or None,
                 )
                 return GitleaksRunResult(
-                    engagement_id=engagement_id, manifest_id=manifest.id,
-                    findings_count=0, findings=[], evidence=evidence,
+                    engagement_id=engagement_id,
+                    manifest_id=manifest.id,
+                    findings_count=0,
+                    findings=[],
+                    evidence=evidence,
                     process_exit_code=capture.returncode,
                     duration_seconds=duration,
                     execution_status=execution_status_for_capture(capture),
@@ -290,11 +324,11 @@ def run_gitleaks(
             # report file that fills memory.
             if report_path.exists():
                 report_size = report_path.stat().st_size
-                cap_bytes = int(
-                    manifest.manifest.limits.get(
-                        "max_output_megabytes", 25
-                    )
-                ) * 1024 * 1024
+                cap_bytes = (
+                    int(manifest.manifest.limits.get("max_output_megabytes", 25))
+                    * 1024
+                    * 1024
+                )
                 if report_size > cap_bytes:
                     raise AdapterError(
                         f"gitleaks report {report_size} bytes exceeds "
@@ -321,11 +355,11 @@ def run_gitleaks(
                 stdout_bytes=len(capture.stdout.encode("utf-8")),
                 stderr_bytes=len(capture.stderr.encode("utf-8")),
                 output_limit_bytes=5 * 1024 * 1024 + 1024 * 1024,
-            stdout_truncated=capture.truncated_stdout,
-            stderr_truncated=capture.truncated_stderr,
-            timed_out=capture.timed_out,
-            terminated=(capture.returncode < 0),
-            process_exit_code=capture.returncode,
+                stdout_truncated=capture.truncated_stdout,
+                stderr_truncated=capture.truncated_stderr,
+                timed_out=capture.timed_out,
+                terminated=(capture.returncode < 0),
+                process_exit_code=capture.returncode,
             )
 
             # 10. Audit
@@ -363,6 +397,7 @@ def run_gitleaks(
             )
         finally:
             import shutil
+
             shutil.rmtree(report_dir, ignore_errors=True)
     finally:
         if owns_db:

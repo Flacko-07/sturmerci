@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 """Approval record and SQLite store. Gate 2."""
+
 from __future__ import annotations
 
 from sentinel.storage.db import Database, coerce_db
 
 import hashlib
 import json
-import sqlite3
 import uuid
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
@@ -98,27 +98,44 @@ class ApprovalRecord:
 
 
 _COLUMNS = [
-    "approval_id", "engagement_id", "engagement_state_at_issue",
-    "policy_snapshot_hash", "scope_lock_hash",
-    "target_asset_ids_json", "target_asset_ids_hash",
-    "canonical_hostnames_json", "allowed_ports_json",
-    "allowed_protocols_json", "allowed_http_methods_json",
-    "allowed_path_profile", "allowed_path_prefixes_json",
+    "approval_id",
+    "engagement_id",
+    "engagement_state_at_issue",
+    "policy_snapshot_hash",
+    "scope_lock_hash",
+    "target_asset_ids_json",
+    "target_asset_ids_hash",
+    "canonical_hostnames_json",
+    "allowed_ports_json",
+    "allowed_protocols_json",
+    "allowed_http_methods_json",
+    "allowed_path_profile",
+    "allowed_path_prefixes_json",
     "operation_profile_id",
-    "tool_name", "tool_version", "tool_executable_sha256",
-    "adapter_code_sha256", "manifest_hash", "egress_profile_id",
+    "tool_name",
+    "tool_version",
+    "tool_executable_sha256",
+    "adapter_code_sha256",
+    "manifest_hash",
+    "egress_profile_id",
     "normalized_arguments_hash",
     "profile_params_json",
-    "request_rate_budget", "aggregate_request_budget",
-    "aggregate_byte_budget", "concurrency_budget",
-    "aggregate_runtime_budget", "aggregate_model_token_budget",
-    "issued_by", "issued_at_utc", "expires_at_utc",
+    "request_rate_budget",
+    "aggregate_request_budget",
+    "aggregate_byte_budget",
+    "concurrency_budget",
+    "aggregate_runtime_budget",
+    "aggregate_model_token_budget",
+    "issued_by",
+    "issued_at_utc",
+    "expires_at_utc",
     "approved_infrastructure_endpoints_json",
     "approved_infrastructure_endpoints_hash",
     "port_scanning_authorized",
     "intrusive_authorized",
     "lab_environment",
-    "revoked_at_utc", "renewed_from_approval_id",
+    "revoked_at_utc",
+    "renewed_from_approval_id",
 ]
 
 
@@ -133,9 +150,7 @@ class ApprovalStore:
         d["allowed_ports_json"] = json.dumps(record.allowed_ports)
         d["allowed_protocols_json"] = json.dumps(record.allowed_protocols)
         d["allowed_http_methods_json"] = json.dumps(record.allowed_http_methods)
-        d["allowed_path_prefixes_json"] = json.dumps(
-            list(record.allowed_path_prefixes)
-        )
+        d["allowed_path_prefixes_json"] = json.dumps(list(record.allowed_path_prefixes))
         d["approved_infrastructure_endpoints_json"] = json.dumps(
             sorted(record.approved_infrastructure_endpoints)
         )
@@ -147,10 +162,8 @@ class ApprovalStore:
         # was never populated". Explicit values are respected (used by
         # tests that want to simulate drift).
         if not d.get("approved_infrastructure_endpoints_hash"):
-            d["approved_infrastructure_endpoints_hash"] = (
-                infrastructure_endpoints_hash(
-                    record.approved_infrastructure_endpoints
-                )
+            d["approved_infrastructure_endpoints_hash"] = infrastructure_endpoints_hash(
+                record.approved_infrastructure_endpoints
             )
         d["port_scanning_authorized"] = 1 if record.port_scanning_authorized else 0
         d["intrusive_authorized"] = 1 if record.intrusive_authorized else 0
@@ -183,9 +196,7 @@ class ApprovalStore:
         d["approved_infrastructure_endpoints"] = json.loads(
             d.pop("approved_infrastructure_endpoints_json")
         )
-        d["profile_params"] = json.loads(
-            d.pop("profile_params_json", "{}")
-        )
+        d["profile_params"] = json.loads(d.pop("profile_params_json", "{}"))
         d["port_scanning_authorized"] = bool(d.get("port_scanning_authorized", 0))
         d["intrusive_authorized"] = bool(d.get("intrusive_authorized", 0))
         d["lab_environment"] = bool(d.get("lab_environment", 0))

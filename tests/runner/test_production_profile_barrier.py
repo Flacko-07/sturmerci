@@ -3,6 +3,7 @@
 production code. Runs a fresh subprocess that imports only
 builtin_profiles (no conftest).
 """
+
 from __future__ import annotations
 
 import subprocess
@@ -22,7 +23,9 @@ def test_production_import_has_no_test_profiles():
     )
     r = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
     )
     assert r.returncode == 0, f"stdout={r.stdout}\nstderr={r.stderr}"
     assert "OK" in r.stdout
@@ -46,7 +49,9 @@ def test_production_register_profile_refuses_test_prefix():
     )
     r = subprocess.run(
         [sys.executable, "-c", code],
-        capture_output=True, text=True, cwd=str(REPO_ROOT),
+        capture_output=True,
+        text=True,
+        cwd=str(REPO_ROOT),
     )
     assert r.returncode == 0, f"stdout={r.stdout}\nstderr={r.stderr}"
     assert "OK" in r.stdout
@@ -54,5 +59,6 @@ def test_production_register_profile_refuses_test_prefix():
 
 def test_pytest_conftest_provides_test_profiles():
     from sentinel.runner.profiles import get_profile
+
     p = get_profile("test/echo")
     assert p.name == "test/echo"

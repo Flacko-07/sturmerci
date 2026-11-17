@@ -22,6 +22,7 @@ A revocation takes effect within CACHE_TTL + 1 poll interval. Not
 zero-latency, but bounded and documented. Set CACHE_TTL to 0 to disable
 for tests that assert revocation timing.
 """
+
 from __future__ import annotations
 
 import threading
@@ -104,22 +105,19 @@ class _ApprovalCache:
         eng = EngagementStore(db).get(approval.engagement_id)
         return {
             "engagement_state": eng.state if eng else None,
-            "scope_lock_hash": current_scope_lock_hash(
-                db, approval.engagement_id),
+            "scope_lock_hash": current_scope_lock_hash(db, approval.engagement_id),
             "policy_hash": current_policy_hash(
-                db, approval.engagement_id,
-                approval.policy_snapshot_hash),
+                db, approval.engagement_id, approval.policy_snapshot_hash
+            ),
             "manifest_hash": current_manifest_hash(
-                db, approval.tool_name, approval.tool_version),
+                db, approval.tool_name, approval.tool_version
+            ),
         }
 
     def get(self):
         now = time.monotonic()
         with self._lock:
-            if (
-                self._approval is not None
-                and (now - self._fetched_at) < self._ttl
-            ):
+            if self._approval is not None and (now - self._fetched_at) < self._ttl:
                 return self._approval
             self._approval = self._astore().get(self._approval_id)
             self._fetched_at = now
@@ -155,9 +153,7 @@ def _canonicalize_path(path: str) -> str:
             path = path.split(sep, 1)[0]
     for ch in path:
         if ord(ch) < 0x20:
-            raise PathCanonicalizationError(
-                f"control character in path: {ord(ch):#x}"
-            )
+            raise PathCanonicalizationError(f"control character in path: {ord(ch):#x}")
     if "\\" in path:
         raise PathCanonicalizationError("backslash in path")
 
@@ -168,9 +164,7 @@ def _canonicalize_path(path: str) -> str:
         try:
             decoded = urllib.parse.unquote(current, errors="strict")
         except UnicodeDecodeError as e:
-            raise PathCanonicalizationError(
-                f"invalid percent-encoding: {e}"
-            ) from e
+            raise PathCanonicalizationError(f"invalid percent-encoding: {e}") from e
         if decoded == current:
             break
         if decoded.count("/") != current.count("/"):
@@ -183,9 +177,7 @@ def _canonicalize_path(path: str) -> str:
         current = "/" + current
     for seg in current.split("/"):
         if seg == "..":
-            raise PathCanonicalizationError(
-                "parent-directory segment in path"
-            )
+            raise PathCanonicalizationError("parent-directory segment in path")
     if "//" in current[1:]:
         raise PathCanonicalizationError("double-slash in path")
     return current
@@ -287,20 +279,23 @@ def make_gatekeeper_filter(
         # binding. Empty scope_lock_hash = unbound (tests, or an approval
         # created outside SandboxRunner). Production approvals always
         # carry a real hash — SandboxRunner sets it at issue time.
-        if (approval.scope_lock_hash
-                and state["scope_lock_hash"] != approval.scope_lock_hash):
+        if (
+            approval.scope_lock_hash
+            and state["scope_lock_hash"] != approval.scope_lock_hash
+        ):
             return ProxyDecision(False, "scope_lock_drift")
 
         # Policy drift: only enforce when the approval claims a policy
         # binding. Empty policy_snapshot_hash = unbound.
-        if (approval.policy_snapshot_hash
-                and state["policy_hash"] != approval.policy_snapshot_hash):
+        if (
+            approval.policy_snapshot_hash
+            and state["policy_hash"] != approval.policy_snapshot_hash
+        ):
             return ProxyDecision(False, "policy_drift")
 
         # Manifest drift: only enforce when the approval claims a
         # manifest binding. Empty manifest_hash = unbound.
-        if (approval.manifest_hash
-                and state["manifest_hash"] != approval.manifest_hash):
+        if approval.manifest_hash and state["manifest_hash"] != approval.manifest_hash:
             return ProxyDecision(
                 False,
                 f"manifest_drift:{state['manifest_hash'] or 'missing'}",
@@ -309,9 +304,7 @@ def make_gatekeeper_filter(
         method = req.method.upper()
         allowed_methods = {m.upper() for m in approval.allowed_http_methods}
         if method not in allowed_methods:
-            return ProxyDecision(
-                False, f"method_not_allowed:{method}"
-            )
+            return ProxyDecision(False, f"method_not_allowed:{method}")
 
         profile = (approval.allowed_path_profile or "default").strip().lower()
         if profile == "default" or profile == "":
@@ -322,13 +315,9 @@ def make_gatekeeper_filter(
         if not prefixes:
             # Restricted mode without prefixes is a configuration error.
             # Deny (safer than accidentally allowing everything).
-            return ProxyDecision(
-                False, "restricted_mode_no_prefixes_configured"
-            )
+            return ProxyDecision(False, "restricted_mode_no_prefixes_configured")
         if not path_matches_prefixes(req.path, prefixes):
-            return ProxyDecision(
-                False, f"path_out_of_prefixes:{','.join(prefixes)}"
-            )
+            return ProxyDecision(False, f"path_out_of_prefixes:{','.join(prefixes)}")
 
         return ProxyDecision(True, "ok")
 

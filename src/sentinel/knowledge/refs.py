@@ -6,6 +6,7 @@ existence checking against the local reference catalogue and NVD cache.
 Uncached CVEs are retained as unverified; definitive rejected records are
 excluded and their provenance is retained for review.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -23,27 +24,94 @@ _REFERENCE_PATTERN = re.compile(
     r"CVE-[0-9]{4}-[0-9]{4,})$"
 )
 
-_KNOWN_CWE = {f"CWE-{n}" for n in (
-    20, 22, 77, 78, 79, 89, 90, 94, 116, 200, 284, 287, 295, 306,
-    352, 384, 400, 434, 444, 476, 502, 522, 601, 611, 613, 639,
-    732, 798, 829, 862, 863, 918, 1021, 1173,
-    209, 521, 770, 799, 915, 917, 942,
-    209, 521, 770, 799, 915, 917, 942,
-)}
+_KNOWN_CWE = {
+    f"CWE-{n}"
+    for n in (
+        20,
+        22,
+        77,
+        78,
+        79,
+        89,
+        90,
+        94,
+        116,
+        200,
+        284,
+        287,
+        295,
+        306,
+        352,
+        384,
+        400,
+        434,
+        444,
+        476,
+        502,
+        522,
+        601,
+        611,
+        613,
+        639,
+        732,
+        798,
+        829,
+        862,
+        863,
+        918,
+        1021,
+        1173,
+        209,
+        521,
+        770,
+        799,
+        915,
+        917,
+        942,
+        209,
+        521,
+        770,
+        799,
+        915,
+        917,
+        942,
+    )
+}
 
 _KNOWN_WSTG = {
     f"WSTG-{cat}-{n:02d}"
-    for cat in ("INFO", "CONF", "IDNT", "ATHN", "ATHZ", "SESS",
-                "INPV", "ERRH", "CRYP", "BUSL", "CLNT", "APIT")
+    for cat in (
+        "INFO",
+        "CONF",
+        "IDNT",
+        "ATHN",
+        "ATHZ",
+        "SESS",
+        "INPV",
+        "ERRH",
+        "CRYP",
+        "BUSL",
+        "CLNT",
+        "APIT",
+    )
     for n in range(1, 20)
 }
 
 _KNOWN_API = {f"API{i}:2023" for i in range(1, 11)}
 
-_KNOWN_MASVS = {f"MASVS-{x}" for x in (
-    "STORAGE", "CRYPTO", "AUTH", "NETWORK",
-    "PLATFORM", "CODE", "RESILIENCE", "PRIVACY",
-)}
+_KNOWN_MASVS = {
+    f"MASVS-{x}"
+    for x in (
+        "STORAGE",
+        "CRYPTO",
+        "AUTH",
+        "NETWORK",
+        "PLATFORM",
+        "CODE",
+        "RESILIENCE",
+        "PRIVACY",
+    )
+}
 
 _KNOWN = _KNOWN_CWE | _KNOWN_WSTG | _KNOWN_API | _KNOWN_MASVS
 
@@ -62,9 +130,9 @@ def exists_in_kb(ref: str) -> bool:
 
 
 class CveStatus(str):
-    VERIFIED = "verified"       # NVD confirms this CVE exists
-    UNVERIFIED = "unverified"   # not in cache; keep, tag for review
-    INVALID = "invalid"         # NVD confirms this CVE does NOT exist
+    VERIFIED = "verified"  # NVD confirms this CVE exists
+    UNVERIFIED = "unverified"  # not in cache; keep, tag for review
+    INVALID = "invalid"  # NVD confirms this CVE does NOT exist
 
 
 def resolve_and_filter(
@@ -115,9 +183,12 @@ def resolve_and_filter(
             ).fetchone()
             if row is None:
                 reference_details[cve_ref] = {
-                    "reference_type": "CVE", "status": CveStatus.UNVERIFIED,
-                    "source": "local_nvd_cache", "checked_at_utc": checked_at,
-                    "record_id": None, "lookup_outcome": "cache_miss",
+                    "reference_type": "CVE",
+                    "status": CveStatus.UNVERIFIED,
+                    "source": "local_nvd_cache",
+                    "checked_at_utc": checked_at,
+                    "record_id": None,
+                    "lookup_outcome": "cache_miss",
                     "rejection_reason": None,
                 }
                 return CveStatus.UNVERIFIED
@@ -130,23 +201,31 @@ def resolve_and_filter(
                 except (TypeError, ValueError):
                     pass
                 reference_details[cve_ref] = {
-                    "reference_type": "CVE", "status": CveStatus.INVALID,
-                    "source": "nvd_cache", "checked_at_utc": checked_at,
-                    "record_id": cve_ref, "lookup_outcome": "rejected",
+                    "reference_type": "CVE",
+                    "status": CveStatus.INVALID,
+                    "source": "nvd_cache",
+                    "checked_at_utc": checked_at,
+                    "record_id": cve_ref,
+                    "lookup_outcome": "rejected",
                     "rejection_reason": reason,
                 }
                 return CveStatus.INVALID
             reference_details[cve_ref] = {
-                "reference_type": "CVE", "status": CveStatus.VERIFIED,
-                "source": "nvd_cache", "checked_at_utc": checked_at,
-                "record_id": cve_ref, "lookup_outcome": "cached_record",
+                "reference_type": "CVE",
+                "status": CveStatus.VERIFIED,
+                "source": "nvd_cache",
+                "checked_at_utc": checked_at,
+                "record_id": cve_ref,
+                "lookup_outcome": "cached_record",
                 "rejection_reason": None,
             }
             return CveStatus.VERIFIED
         except Exception as exc:
             reference_details[cve_ref] = {
-                "reference_type": "CVE", "status": CveStatus.UNVERIFIED,
-                "source": "local_nvd_cache", "checked_at_utc": checked_at,
+                "reference_type": "CVE",
+                "status": CveStatus.UNVERIFIED,
+                "source": "local_nvd_cache",
+                "checked_at_utc": checked_at,
                 "record_id": None,
                 "lookup_outcome": f"cache_error:{type(exc).__name__}",
                 "rejection_reason": None,
@@ -171,7 +250,8 @@ def resolve_and_filter(
                     "reference_type": "CWE/WSTG/API/MASVS",
                     "status": CveStatus.VERIFIED,
                     "source": "local_reference_catalogue",
-                    "checked_at_utc": checked_at, "record_id": r,
+                    "checked_at_utc": checked_at,
+                    "record_id": r,
                     "lookup_outcome": "catalogue_match",
                     "rejection_reason": None,
                 }
@@ -181,7 +261,8 @@ def resolve_and_filter(
                     "reference_type": "unknown",
                     "status": CveStatus.INVALID,
                     "source": "local_reference_catalogue",
-                    "checked_at_utc": checked_at, "record_id": None,
+                    "checked_at_utc": checked_at,
+                    "record_id": None,
                     "lookup_outcome": "no_catalogue_match",
                     "rejection_reason": "malformed_or_unknown_reference",
                 }

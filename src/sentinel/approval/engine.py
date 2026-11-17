@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Approval TTL calculation. Gate 2."""
+
 from __future__ import annotations
 
 
@@ -18,7 +19,5 @@ def calculate_approval_ttl(
     margin_sec = 300
     required_sec = profile_max_runtime_sec + margin_sec
     if remaining_window_sec < required_sec:
-        raise ValueError(
-            "Program window too short for profile runtime + margin; deny."
-        )
+        raise ValueError("Program window too short for profile runtime + margin; deny.")
     return min(max(900, required_sec), 3600)

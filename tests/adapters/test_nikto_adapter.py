@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """nikto adapter test — hermetic, mocks run_in_sandbox."""
+
 from __future__ import annotations
 
 import hashlib
@@ -11,10 +12,14 @@ import pytest
 
 import sentinel.runner.builtin_profiles  # noqa: F401
 from sentinel.adapters.nikto import (
-    run_nikto, parse_output, NiktoAdapterError, ALLOWED_TUNINGS,
+    run_nikto,
+    parse_output,
+    ALLOWED_TUNINGS,
 )
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
@@ -24,7 +29,7 @@ from sentinel.storage.db import Database
 from sentinel.tools.manifests import ManifestStore, ToolManifest
 
 
-FAKE_NIKTO_OUTPUT = '''{
+FAKE_NIKTO_OUTPUT = """{
   "host": "app.test",
   "ip": "198.51.100.5",
   "port": 443,
@@ -35,7 +40,7 @@ FAKE_NIKTO_OUTPUT = '''{
     {"id": "000042", "method": "GET", "url": "/.git/HEAD",
      "msg": "Git repository exposed", "references": "OSVDB-842"}
   ]
-}'''
+}"""
 
 
 def test_parse_output_happy():
@@ -74,8 +79,14 @@ def test_profile_builds_valid_argv():
     argv = build_argv_for_profile(
         profile_name="nikto/web_server_scan",
         executable_path="/usr/bin/nikto.pl",
-        params={"hostname": "app.test", "port": 443, "scheme": "https",
-                "tunings": "123", "pause_seconds": 0.1, "max_time_seconds": 300},
+        params={
+            "hostname": "app.test",
+            "port": 443,
+            "scheme": "https",
+            "tunings": "123",
+            "pause_seconds": 0.1,
+            "max_time_seconds": 300,
+        },
     )
     assert "-ssl" in argv
     assert "-Tuning" in argv
@@ -87,8 +98,14 @@ def test_profile_refuses_tuning_4plus():
         build_argv_for_profile(
             profile_name="nikto/web_server_scan",
             executable_path="/usr/bin/nikto.pl",
-            params={"hostname": "app.test", "port": 443, "scheme": "https",
-                    "tunings": "1234", "pause_seconds": 0.1, "max_time_seconds": 300},
+            params={
+                "hostname": "app.test",
+                "port": 443,
+                "scheme": "https",
+                "tunings": "1234",
+                "pause_seconds": 0.1,
+                "max_time_seconds": 300,
+            },
         )
 
 
@@ -96,16 +113,21 @@ def _build_env(tmp_path, *, budget=2000, rate=10):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="nikto-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="nikto-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
 
     astore = AssetStore(db)
     cid = astore.add_candidate(
-        engagement_id=eng.id, raw_value="app.test",
-        canonical_value="app.test", asset_type="hostname",
+        engagement_id=eng.id,
+        raw_value="app.test",
+        canonical_value="app.test",
+        asset_type="hostname",
         discovery_source="t",
     )
     aid = astore.promote_candidate(cid, approved_by="op")
@@ -113,20 +135,29 @@ def _build_env(tmp_path, *, budget=2000, rate=10):
     fake_binary = "/bin/true"
     h = hashlib.sha256(Path(fake_binary).read_bytes()).hexdigest()
     from sentinel.adapters.nikto import NIKTO_VERSION
-    ManifestStore(db).register(ToolManifest(
-        tool_name="nikto", version=NIKTO_VERSION,
-        executable_path=fake_binary, executable_sha256=h,
-        execution_class=2, network_access=True,
-        allowed_profiles=("web_server_scan",),
-        prohibited=("-evasion", "-useproxy"),
-        limits={"max_runtime_seconds": 60, "max_output_megabytes": 25},
-        output_format="json",
-    ), actor="test")
+
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="nikto",
+            version=NIKTO_VERSION,
+            executable_path=fake_binary,
+            executable_sha256=h,
+            execution_class=2,
+            network_access=True,
+            allowed_profiles=("web_server_scan",),
+            prohibited=("-evasion", "-useproxy"),
+            limits={"max_runtime_seconds": 60, "max_output_megabytes": 25},
+            output_format="json",
+        ),
+        actor="test",
+    )
 
     from sentinel.runner.sandbox_runner import (
-        _current_scope_lock_hash, _current_egress_profile_id,
+        _current_scope_lock_hash,
+        _current_egress_profile_id,
         _current_adapter_code_sha256,
     )
+
     adapter_path = Path("src/sentinel/adapters/nikto.py")
     now = datetime.now(timezone.utc)
     appr = ApprovalRecord(
@@ -143,10 +174,13 @@ def _build_env(tmp_path, *, budget=2000, rate=10):
         allowed_http_methods=["GET"],
         allowed_path_profile="default",
         operation_profile_id="web_server_scan",
-        tool_name="nikto", tool_version=NIKTO_VERSION,
+        tool_name="nikto",
+        tool_version=NIKTO_VERSION,
         tool_executable_sha256=h,
         adapter_code_sha256=_current_adapter_code_sha256(adapter_path),
-        manifest_hash=ManifestStore(db).get_by_tool_version("nikto", NIKTO_VERSION).manifest_hash,
+        manifest_hash=ManifestStore(db)
+        .get_by_tool_version("nikto", NIKTO_VERSION)
+        .manifest_hash,
         egress_profile_id=_current_egress_profile_id(),
         normalized_arguments_hash="",
         request_rate_budget=rate,
@@ -160,23 +194,35 @@ def _build_env(tmp_path, *, budget=2000, rate=10):
         expires_at_utc=(now + timedelta(hours=1)).isoformat(),
     )
     ApprovalStore(db).issue(appr)
-    return {"db": db, "eng_id": eng.id, "approval_id": appr.approval_id,
-            "engagements_root": tmp_path / "engagements"}
+    return {
+        "db": db,
+        "eng_id": eng.id,
+        "approval_id": appr.approval_id,
+        "engagements_root": tmp_path / "engagements",
+    }
 
 
 def test_run_nikto_happy(tmp_path):
     env = _build_env(tmp_path)
     fake = SandboxResult(
-        stdout=FAKE_NIKTO_OUTPUT, stderr="", exit_code=0,
-        duration_seconds=1.0, namespace_name="ns-test",
-        resolved_ip="198.51.100.5", audit_event_seq=1,
-        used_providers=(), resolved_ips=("198.51.100.5",),
+        stdout=FAKE_NIKTO_OUTPUT,
+        stderr="",
+        exit_code=0,
+        duration_seconds=1.0,
+        namespace_name="ns-test",
+        resolved_ip="198.51.100.5",
+        audit_event_seq=1,
+        used_providers=(),
+        resolved_ips=("198.51.100.5",),
     )
     with patch("sentinel.adapters.nikto.run_in_sandbox", return_value=fake):
         result = run_nikto(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            target_hostname="app.test", port=443, scheme="https",
+            target_hostname="app.test",
+            port=443,
+            scheme="https",
             engagements_root=env["engagements_root"],
         )
     assert result.findings_count == 2

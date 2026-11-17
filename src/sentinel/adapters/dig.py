@@ -11,15 +11,13 @@ Forbidden flags prevent bypassing the resolver:
   -f           -- batch mode from a file, could query unrelated names
   +qr          -- debug output
 """
+
 from __future__ import annotations
 
 import ipaddress
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from sentinel.audit.store import AuditStore
-from sentinel.engagement.store import EngagementStore
 from sentinel.evidence.ingest import ingest_evidence, IngestResult
 from sentinel.runner.sandbox_runner import SandboxRequest, run_in_sandbox
 from sentinel.storage.db import Database, coerce_db
@@ -30,9 +28,19 @@ DIG_TOOL_NAME = "dig"
 DIG_VERSION = "9.18.39"
 PROFILE = "dns_lookup"
 
-ALLOWED_RECORD_TYPES = frozenset({
-    "A", "AAAA", "MX", "NS", "SOA", "TXT", "CNAME", "CAA", "SRV",
-})
+ALLOWED_RECORD_TYPES = frozenset(
+    {
+        "A",
+        "AAAA",
+        "MX",
+        "NS",
+        "SOA",
+        "TXT",
+        "CNAME",
+        "CAA",
+        "SRV",
+    }
+)
 
 FORBIDDEN_FLAGS = ("+trace", "-f", "+qr", "+tcp")  # +tcp refused to keep parsing simple
 
@@ -98,10 +106,15 @@ def parse_output(stdout: str, record_type: str) -> list[DnsRecord]:
             continue
         if rtype != record_type:
             continue
-        records.append(DnsRecord(
-            name=name.rstrip("."), ttl=ttl, record_class=cls,
-            record_type=rtype, value=value.rstrip("."),
-        ))
+        records.append(
+            DnsRecord(
+                name=name.rstrip("."),
+                ttl=ttl,
+                record_class=cls,
+                record_type=rtype,
+                value=value.rstrip("."),
+            )
+        )
     return records
 
 
@@ -128,12 +141,11 @@ def run_dig(
     db_obj, owns = coerce_db(db)
     try:
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            DIG_TOOL_NAME, DIG_VERSION,
+            DIG_TOOL_NAME,
+            DIG_VERSION,
         )
         if manifest is None:
-            raise DigAdapterError(
-                f"no manifest for dig {DIG_VERSION} — register first"
-            )
+            raise DigAdapterError(f"no manifest for dig {DIG_VERSION} — register first")
         if manifest.manifest.network_access is not True:
             raise DigAdapterError("dig manifest must be network_access=True")
 
@@ -146,7 +158,8 @@ def run_dig(
             path="/",
             argv=[
                 manifest.manifest.executable_path,
-                "+noall", "+answer",
+                "+noall",
+                "+answer",
                 f"@{resolver_ip}",
                 target_domain,
                 record_type,
@@ -180,7 +193,8 @@ def run_dig(
 
         records = parse_output(result.stdout, record_type)
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"dig_{target_domain}_{record_type}.txt",
             content_type="text/plain",
@@ -188,7 +202,8 @@ def run_dig(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -198,9 +213,12 @@ def run_dig(
         )
 
         return DigRunResult(
-            domain=target_domain, resolver=resolver_ip,
-            record_type=record_type, records=records,
-            raw_response=result.stdout, evidence=evidence,
+            domain=target_domain,
+            resolver=resolver_ip,
+            record_type=record_type,
+            records=records,
+            raw_response=result.stdout,
+            evidence=evidence,
             execution_status=result.execution_status,
         )
     finally:

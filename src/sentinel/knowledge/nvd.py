@@ -12,6 +12,7 @@ retries are bounded to 3 to avoid hangs on a stuck endpoint.
 No target-data egress: the client only sends the CVE ID being looked
 up. No engagement id, no evidence, no scan output.
 """
+
 from __future__ import annotations
 
 import json
@@ -38,6 +39,7 @@ class NvdError(RuntimeError):
 
 class NvdCveNotFound(NvdError):
     """NVD returned 0 vulnerabilities for the queried CVE ID."""
+
     pass
 
 
@@ -87,9 +89,7 @@ def _parse_nvd(cve_id: str, obj: dict) -> NvdCve:
         arr = metrics.get(key) or []
         if not arr:
             continue
-        chosen = next(
-            (a for a in arr if a.get("type") == "Primary"), arr[0]
-        )
+        chosen = next((a for a in arr if a.get("type") == "Primary"), arr[0])
         data = chosen.get("cvssData") or {}
         score = data.get("baseScore")
         if isinstance(score, (int, float)):
@@ -179,7 +179,9 @@ def fetch_cve(cve_id: str) -> NvdCve:
             )
         return _parse_nvd(cve_id, vulns[0])
 
-    raise NvdError(f"NVD fetch for {cve_id} failed after {MAX_RETRIES} attempts: {last_err}")
+    raise NvdError(
+        f"NVD fetch for {cve_id} failed after {MAX_RETRIES} attempts: {last_err}"
+    )
 
 
 def store_cve(db: Database, cve: NvdCve) -> None:
@@ -201,9 +203,17 @@ def store_cve(db: Database, cve: NvdCve) -> None:
                 cvss_severity=excluded.cvss_severity,
                 raw_json=excluded.raw_json,
                 fetched_at_utc=excluded.fetched_at_utc""",
-            (cve.cve_id, cve.published_utc, cve.last_modified,
-             cve.vuln_status, cve.description, cve.cvss_score,
-             cve.cvss_severity, cve.raw_json, now),
+            (
+                cve.cve_id,
+                cve.published_utc,
+                cve.last_modified,
+                cve.vuln_status,
+                cve.description,
+                cve.cvss_score,
+                cve.cvss_severity,
+                cve.raw_json,
+                now,
+            ),
         )
 
 
@@ -238,16 +248,20 @@ def mark_cve_invalid(db: Database, cve_id: str, reason: str) -> None:
             (
                 cve_id.upper(),
                 f"Confirmed invalid: {reason}",
-                '{"vuln_status": "INVALID", "reason": '
-                + json.dumps(reason) + '}',
+                '{"vuln_status": "INVALID", "reason": ' + json.dumps(reason) + "}",
                 now,
             ),
         )
 
 
 def record_sync_attempt(
-    db: Database, *, cve_id: str, outcome: str, actor: str,
-    detail: str, record_status: str | None = None,
+    db: Database,
+    *,
+    cve_id: str,
+    outcome: str,
+    actor: str,
+    detail: str,
+    record_status: str | None = None,
 ) -> None:
     """Persist an operator-visible NVD result without changing CVE truth."""
     if outcome not in {"verified", "rejected", "not_found", "transient_error"}:
@@ -257,7 +271,13 @@ def record_sync_attempt(
             "INSERT INTO cve_sync_attempts "
             "(attempt_id,cve_id,outcome,attempted_at_utc,actor,detail,record_status) "
             "VALUES (?,?,?,?,?,?,?)",
-            ("nvd_" + uuid4().hex[:20], cve_id.upper(), outcome,
-             datetime.now(timezone.utc).isoformat(), actor, detail[:2000],
-             record_status),
+            (
+                "nvd_" + uuid4().hex[:20],
+                cve_id.upper(),
+                outcome,
+                datetime.now(timezone.utc).isoformat(),
+                actor,
+                detail[:2000],
+                record_status,
+            ),
         )

@@ -8,6 +8,7 @@ Edit the prompt -> new hash -> audit distinguishes pre/post-edit output.
 Never inline prompt text into client.py. All prompts live here so the
 hash is computed at import time and cannot drift.
 """
+
 from __future__ import annotations
 
 import hashlib

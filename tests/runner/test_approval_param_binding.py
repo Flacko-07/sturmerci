@@ -9,6 +9,7 @@ Reviewer's P0.2: "The approval fields `operation_profile_id` and
 `normalized_arguments_hash` are also not compared against the actual
 request."
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -20,14 +21,19 @@ from pathlib import Path
 import pytest
 
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.runner.profiles import params_hash
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, SandboxRequest, run_in_sandbox,
-    _current_scope_lock_hash, _current_egress_profile_id,
+    SandboxDenied,
+    SandboxRequest,
+    run_in_sandbox,
+    _current_scope_lock_hash,
+    _current_egress_profile_id,
     _current_adapter_code_sha256,
 )
 from sentinel.storage.db import Database
@@ -42,6 +48,7 @@ def _fake_namespace(*a, **k):
         run_id = "faketest"
         ns_ip = "10.99.0.2"
         main_gateway_ip = "10.99.0.1"
+
     yield _Ns()
 
 
@@ -52,12 +59,17 @@ class _FakeProc:
         self.returncode = None
         self._duration = duration
         self._final_rc = returncode
+
     def wait(self, timeout=None):
-        import time; time.sleep(self._duration)
+        import time
+
+        time.sleep(self._duration)
         self.returncode = self._final_rc
         return self.returncode
+
     def kill(self):
         self.returncode = -9
+
     def communicate(self, timeout=None):
         return b"", b""
 
@@ -66,71 +78,98 @@ def _make_env(tmp_path, *, bound_params=None, bound_profile="test/echo"):
     db = Database(tmp_path / "sentinel.sqlite3")
     eng_store = EngagementStore(db)
     eng = eng_store.create(
-        platform="lab", program_name="binding-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="binding-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     eng_store.transition(eng.id, "scope_review", "op")
     eng_store.transition(eng.id, "active", "op")
 
     astore = AssetStore(db)
     cid = astore.add_candidate(
-        engagement_id=eng.id, raw_value="127.0.0.1",
-        canonical_value="127.0.0.1", asset_type="ip",
+        engagement_id=eng.id,
+        raw_value="127.0.0.1",
+        canonical_value="127.0.0.1",
+        asset_type="ip",
         discovery_source="t",
     )
     aid = astore.promote_candidate(cid, approved_by="op")
 
     bin_sha = hashlib.sha256(Path("/bin/sh").read_bytes()).hexdigest()
-    ManifestStore(db).register(ToolManifest(
-        tool_name="binding", version="1.0",
-        executable_path="/bin/sh", executable_sha256=bin_sha,
-        execution_class=2, network_access=True,
-        allowed_profiles=("test/echo", "test/exploit"),
-        prohibited=(), limits={"max_runtime_seconds": 60},
-        output_format="text",
-    ), actor="test")
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="binding",
+            version="1.0",
+            executable_path="/bin/sh",
+            executable_sha256=bin_sha,
+            execution_class=2,
+            network_access=True,
+            allowed_profiles=("test/echo", "test/exploit"),
+            prohibited=(),
+            limits={"max_runtime_seconds": 60},
+            output_format="text",
+        ),
+        actor="test",
+    )
 
     adapter_path = Path("src/sentinel/runner/sandbox_runner.py")
     now = datetime.now(timezone.utc)
     appr = ApprovalRecord(
         approval_id="appr_binding",
-        engagement_id=eng.id, engagement_state_at_issue="active",
+        engagement_id=eng.id,
+        engagement_state_at_issue="active",
         policy_snapshot_hash="",
         scope_lock_hash=_current_scope_lock_hash(db, eng.id, ""),
         target_asset_ids=[aid],
         target_asset_ids_hash=target_asset_ids_hash([aid]),
         canonical_hostnames=["127.0.0.1"],
-        allowed_ports=[80], allowed_protocols=["http"],
-        allowed_http_methods=["GET"], allowed_path_profile="default",
+        allowed_ports=[80],
+        allowed_protocols=["http"],
+        allowed_http_methods=["GET"],
+        allowed_path_profile="default",
         operation_profile_id=bound_profile,
-        tool_name="binding", tool_version="1.0",
+        tool_name="binding",
+        tool_version="1.0",
         tool_executable_sha256=bin_sha,
         adapter_code_sha256=_current_adapter_code_sha256(adapter_path),
-        manifest_hash=ManifestStore(db).get_by_tool_version(
-            "binding", "1.0").manifest_hash,
+        manifest_hash=ManifestStore(db)
+        .get_by_tool_version("binding", "1.0")
+        .manifest_hash,
         egress_profile_id=_current_egress_profile_id(),
         normalized_arguments_hash=(
             params_hash(bound_params) if bound_params is not None else ""
         ),
         profile_params=bound_params or {},
-        request_rate_budget=5, aggregate_request_budget=50,
-        aggregate_byte_budget=1_000_000, concurrency_budget=1,
-        aggregate_runtime_budget=60, aggregate_model_token_budget=0,
-        issued_by="op", issued_at_utc=now.isoformat(),
+        request_rate_budget=5,
+        aggregate_request_budget=50,
+        aggregate_byte_budget=1_000_000,
+        concurrency_budget=1,
+        aggregate_runtime_budget=60,
+        aggregate_model_token_budget=0,
+        issued_by="op",
+        issued_at_utc=now.isoformat(),
         expires_at_utc=(now + timedelta(minutes=5)).isoformat(),
     )
     ApprovalStore(db).issue(appr)
-    return {"db": db, "eng_id": eng.id,
-            "approval_id": appr.approval_id,
-            "engagements_root": tmp_path / "engagements"}
+    return {
+        "db": db,
+        "eng_id": eng.id,
+        "approval_id": appr.approval_id,
+        "engagements_root": tmp_path / "engagements",
+    }
 
 
 def _req(profile="test/echo", params=None):
     params = {"msg": "hello"} if params is None else params
     message = params.get("msg", "exploit")
     return SandboxRequest(
-        hostname="127.0.0.1", port=80, protocol="http",
-        method="GET", path="/",
+        hostname="127.0.0.1",
+        port=80,
+        protocol="http",
+        method="GET",
+        path="/",
         argv=["/bin/sh", message],
         timeout_seconds=10,
         operation_profile=profile,
@@ -140,9 +179,11 @@ def _req(profile="test/echo", params=None):
 
 def _run(env, req):
     return run_in_sandbox(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         approval_id=env["approval_id"],
-        adapter_name="binding", adapter_version="1.0",
+        adapter_name="binding",
+        adapter_version="1.0",
         request=req,
         engagements_root=env["engagements_root"],
         adapter_code_path=Path("src/sentinel/runner/sandbox_runner.py"),
@@ -152,15 +193,16 @@ def _run(env, req):
 
 def _mock_runner_layers(monkeypatch):
     import sentinel.runner.sandbox_runner as sr
+
     monkeypatch.setattr(sr, "_resolve_hostname", lambda h: ["1.1.1.1"])
     monkeypatch.setattr(sr, "run_namespace", _fake_namespace)
-    monkeypatch.setattr(sr.subprocess, "Popen",
-                        lambda *a, **k: _FakeProc(duration=0.1))
+    monkeypatch.setattr(sr.subprocess, "Popen", lambda *a, **k: _FakeProc(duration=0.1))
 
 
 # ====================================================================
 # 6A — normalized_arguments_hash
 # ====================================================================
+
 
 def test_params_hash_is_deterministic():
     a = params_hash({"wordlist": "common.txt", "rate": "10"})
@@ -243,6 +285,7 @@ def test_class3_empty_param_set_is_explicitly_bound(tmp_path, monkeypatch):
 # ====================================================================
 # 6B — operation_profile_id binding
 # ====================================================================
+
 
 def test_profile_mismatch_denied(tmp_path, monkeypatch):
     """Approval bound to test/echo; request uses test/exploit → denied."""

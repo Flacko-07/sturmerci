@@ -7,10 +7,10 @@ shell=True, etc.). Pure Python AST analysis — no network. Same
 pattern as Semgrep: run_captured (bounded) with pinned argv, JSON parsing,
 evidence ingestion, audit event.
 """
+
 from __future__ import annotations
 
 import json
-import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,8 +21,11 @@ from sentinel.evidence.ingest import ingest_evidence, IngestResult
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
 from sentinel.adapters._helpers import (
-    BinaryDigestError, run_isolated_scanner, verify_binary_digest,
-    execution_status_for_capture, ingest_incomplete_capture,
+    BinaryDigestError,
+    run_isolated_scanner,
+    verify_binary_digest,
+    execution_status_for_capture,
+    ingest_incomplete_capture,
 )
 
 
@@ -82,15 +85,17 @@ def parse_output(stdout: str) -> list[BanditFinding]:
         if not test_id:
             continue
         filename = str(r.get("filename", "") or "")
-        findings.append(BanditFinding(
-            test_id=test_id,
-            test_name=str(r.get("test_name", "") or ""),
-            severity=str(r.get("issue_severity", "") or ""),
-            confidence=str(r.get("issue_confidence", "") or ""),
-            file=filename,
-            line=int(r.get("line_number", 0) or 0),
-            message=str(r.get("issue_text", "") or "")[:500],
-        ))
+        findings.append(
+            BanditFinding(
+                test_id=test_id,
+                test_name=str(r.get("test_name", "") or ""),
+                severity=str(r.get("issue_severity", "") or ""),
+                confidence=str(r.get("issue_confidence", "") or ""),
+                file=filename,
+                line=int(r.get("line_number", 0) or 0),
+                message=str(r.get("issue_text", "") or "")[:500],
+            )
+        )
     return findings
 
 
@@ -114,7 +119,8 @@ def run_bandit(
             )
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            BANDIT_TOOL_NAME, BANDIT_VERSION,
+            BANDIT_TOOL_NAME,
+            BANDIT_VERSION,
         )
         if manifest is None:
             raise BanditAdapterError(
@@ -122,7 +128,6 @@ def run_bandit(
             )
         if manifest.manifest.network_access:
             raise BanditAdapterError("bandit manifest must be network_access=False")
-
 
         try:
             verify_binary_digest(
@@ -146,31 +151,42 @@ def run_bandit(
         # adapter wrote "{}" as evidence, findings_count=0. Silent failure.
         argv = [
             manifest.manifest.executable_path,
-            "-r", str(source),
-            "-f", "json",
+            "-r",
+            str(source),
+            "-f",
+            "json",
             "-q",
         ]
 
         t0 = time.monotonic()
         capture = run_isolated_scanner(
-            argv, input_path=source, timeout_seconds=timeout_seconds,
+            argv,
+            input_path=source,
+            timeout_seconds=timeout_seconds,
         )
         duration = time.monotonic() - t0
         if capture.timed_out or capture.truncated_stdout or capture.truncated_stderr:
             evidence = ingest_incomplete_capture(
-                db_obj, engagements_root=engagements_root,
+                db_obj,
+                engagements_root=engagements_root,
                 engagement_id=engagement_id,
                 source_name=f"bandit_{BANDIT_VERSION}_partial.txt",
-                actor=actor, capture=capture, event_type="bandit_run",
+                actor=actor,
+                capture=capture,
+                event_type="bandit_run",
             )
             findings = parse_output(capture.stdout)
             return BanditRunResult(
-                findings=findings, findings_count=len(findings),
-                evidence=evidence, process_exit_code=capture.returncode,
-                timed_out=capture.timed_out, truncated_stdout=capture.truncated_stdout,
+                findings=findings,
+                findings_count=len(findings),
+                evidence=evidence,
+                process_exit_code=capture.returncode,
+                timed_out=capture.timed_out,
+                truncated_stdout=capture.truncated_stdout,
                 truncated_stderr=capture.truncated_stderr,
                 execution_status=execution_status_for_capture(
-                    capture, successful_exit_codes=(0, 1)),
+                    capture, successful_exit_codes=(0, 1)
+                ),
             )
         stdout = capture.stdout
 
@@ -194,6 +210,7 @@ def run_bandit(
             )
         try:
             import json as _json_strict
+
             _json_strict.loads(capture.stdout)
         except Exception as _je:
             raise BanditAdapterError(
@@ -204,7 +221,8 @@ def run_bandit(
         findings = parse_output(stdout or "")
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"bandit_{BANDIT_VERSION}.json",
             content_type="application/json",
@@ -212,7 +230,8 @@ def run_bandit(
             actor=actor,
             truncated_output=capture.truncated_stdout or capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
             stdout_bytes=len(capture.stdout.encode("utf-8")),
             stderr_bytes=len(capture.stderr.encode("utf-8")),
             output_limit_bytes=5 * 1024 * 1024 + 1024 * 1024,
@@ -224,7 +243,8 @@ def run_bandit(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="bandit_run",
             decision="ok" if capture.returncode in (0, 1) else "error",
             details={
@@ -249,7 +269,8 @@ def run_bandit(
             truncated_stdout=capture.truncated_stdout,
             truncated_stderr=capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
         )
     finally:
         if owns:

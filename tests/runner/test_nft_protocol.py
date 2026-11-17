@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Batch A: nft.add_approved supports protocol="udp"."""
+
 from __future__ import annotations
 
 import pytest

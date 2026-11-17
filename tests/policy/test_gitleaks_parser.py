@@ -1,11 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for Gitleaks report parsing/validation."""
+
 import json
 
 import pytest
 
 from sentinel.adapters.gitleaks import (
-    parse_and_validate, GitleaksOutputError, REDACTED, REQUIRED_FIELDS,
+    parse_and_validate,
+    GitleaksOutputError,
+    REDACTED,
+    REQUIRED_FIELDS,
 )
 
 
@@ -14,13 +18,21 @@ def _valid_finding(**overrides):
         "RuleID": "aws-access-token",
         "Description": "AWS Access Token",
         "File": "a.py",
-        "StartLine": 1, "EndLine": 1,
-        "StartColumn": 1, "EndColumn": 20,
+        "StartLine": 1,
+        "EndLine": 1,
+        "StartColumn": 1,
+        "EndColumn": 20,
         "Match": REDACTED,
         "Secret": REDACTED,
         "Entropy": 4.0,
-        "Author": "", "Email": "", "Date": "", "Commit": "", "Message": "",
-        "SymlinkFile": "", "Tags": [], "Fingerprint": "a.py:aws-access-token:1",
+        "Author": "",
+        "Email": "",
+        "Date": "",
+        "Commit": "",
+        "Message": "",
+        "SymlinkFile": "",
+        "Tags": [],
+        "Fingerprint": "a.py:aws-access-token:1",
     }
     base.update(overrides)
     return base

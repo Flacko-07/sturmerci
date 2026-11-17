@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Explicit, append-only review workflow for knowledge revisions."""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -65,21 +66,33 @@ def review_revision(
                 "INSERT INTO knowledge_reviews "
                 "(review_id, revision_id, entry_id, content_hash, decision, "
                 "reviewer, reviewed_at_utc, rationale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (review_id, row["current_revision_id"], entry_id,
-                 row["content_hash"], decision, reviewer, timestamp, rationale),
+                (
+                    review_id,
+                    row["current_revision_id"],
+                    entry_id,
+                    row["content_hash"],
+                    decision,
+                    reviewer,
+                    timestamp,
+                    rationale,
+                ),
             )
             conn.execute(
                 "UPDATE knowledge_entries SET review_status=? WHERE id=?",
                 ("reviewed" if decision == "approved" else "rejected", entry_id),
             )
             AuditStore(db_obj).append(
-                engagement_id="system", actor=reviewer,
-                event_type="knowledge_revision_reviewed", decision="ok",
-                details={"entry_id": entry_id,
-                         "revision_id": row["current_revision_id"],
-                         "content_hash": row["content_hash"],
-                         "review_decision": decision,
-                         "review_id": review_id},
+                engagement_id="system",
+                actor=reviewer,
+                event_type="knowledge_revision_reviewed",
+                decision="ok",
+                details={
+                    "entry_id": entry_id,
+                    "revision_id": row["current_revision_id"],
+                    "content_hash": row["content_hash"],
+                    "review_decision": decision,
+                    "review_id": review_id,
+                },
             )
         return review_id
     finally:

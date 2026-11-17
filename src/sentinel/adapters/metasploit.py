@@ -32,9 +32,9 @@ Post-exploitation (exploit/*, post/*) is refused at adapter level with a
 dedicated error before SandboxRunner sees the request. The Class 3
 profile gate is the second layer.
 """
+
 from __future__ import annotations
 
-import os
 import os
 import re
 import shutil
@@ -73,28 +73,30 @@ _EXPLOIT_MODULE_RE = re.compile(r"^exploit/[a-z0-9_]+/[a-z0-9_]+/[a-z0-9_]+$")
 # requires a security review of the new module's actual behaviour — some
 # auxiliary/gather/* modules dump data, run DB enumeration, or query
 # third-party APIs. See docs/TECHNICAL_DEBT.md (P0.4 follow-up).
-_CHECK_MODULE_ALLOWLIST = frozenset({
-    "auxiliary/scanner/http/title",
-    "auxiliary/scanner/http/options",
-    "auxiliary/scanner/http/http_version",
-    "auxiliary/scanner/http/robots_txt",
-    "auxiliary/scanner/portscan/tcp",
-    "auxiliary/gather/office365userenum",
-})
+_CHECK_MODULE_ALLOWLIST = frozenset(
+    {
+        "auxiliary/scanner/http/title",
+        "auxiliary/scanner/http/options",
+        "auxiliary/scanner/http/http_version",
+        "auxiliary/scanner/http/robots_txt",
+        "auxiliary/scanner/portscan/tcp",
+        "auxiliary/gather/office365userenum",
+    }
+)
 
 # (batch-2) RC-file injection defenses.
 _RC_SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-./:\s,@=]+$")
-_RC_SAFE_PAYLOAD_RE = re.compile(
-    r"^[a-z0-9_]+/[a-z0-9_]+/[a-z0-9_]+(?:/[a-z0-9_]+)?$"
+_RC_SAFE_PAYLOAD_RE = re.compile(r"^[a-z0-9_]+/[a-z0-9_]+/[a-z0-9_]+(?:/[a-z0-9_]+)?$")
+_RC_ALLOWED_OPTION_KEYS = frozenset(
+    {
+        "VHOST",
+        "TARGETURI",
+        "URI",
+        "THREADS",
+        "ConnectTimeout",
+        "HttpClientTimeout",
+    }
 )
-_RC_ALLOWED_OPTION_KEYS = frozenset({
-    "VHOST",
-    "TARGETURI",
-    "URI",
-    "THREADS",
-    "ConnectTimeout",
-    "HttpClientTimeout",
-})
 
 # Parser anchors. Matches MSF's spool output format:
 #   [+] 127.0.0.1:18081 - Title: SimpleHTTP/0.6
@@ -117,8 +119,8 @@ class MetasploitAdapterError(ValueError):
 @dataclass(frozen=True, slots=True)
 class MetasploitFinding:
     host_port: str
-    kind: str            # "vulnerable" / "safe" / "unknown" / "info"
-    field: str           # for [INFO]/[+] "Field: Value" lines, the field name
+    kind: str  # "vulnerable" / "safe" / "unknown" / "info"
+    field: str  # for [INFO]/[+] "Field: Value" lines, the field name
     value: str
 
 
@@ -157,12 +159,14 @@ def parse_spool(text: str) -> list[MetasploitFinding]:
     out: list[MetasploitFinding] = []
     # Structured findings: [+] host:port - Field: Value
     for m in _FINDING_RE.finditer(text):
-        out.append(MetasploitFinding(
-            host_port=m.group(1),
-            kind="info",
-            field=m.group(2).strip(),
-            value=m.group(3).strip()[:500],
-        ))
+        out.append(
+            MetasploitFinding(
+                host_port=m.group(1),
+                kind="info",
+                field=m.group(2).strip(),
+                value=m.group(3).strip()[:500],
+            )
+        )
     # Check-result lines: [+] / [-] / [!] host:port - <message>
     # Skip ones that fit the "Field: Value" shape (already captured above).
     for m in _RESULT_LINE_RE.finditer(text):
@@ -170,9 +174,14 @@ def parse_spool(text: str) -> list[MetasploitFinding]:
         if ":" in msg and not msg.startswith("http"):
             continue
         kind = _classify_check_msg(msg, marker)
-        out.append(MetasploitFinding(
-            host_port=hp, kind=kind, field="check", value=msg[:500],
-        ))
+        out.append(
+            MetasploitFinding(
+                host_port=hp,
+                kind=kind,
+                field="check",
+                value=msg[:500],
+            )
+        )
     return out
 
 
@@ -235,15 +244,19 @@ def _validate_payload(payload: str) -> None:
         )
     if not _RC_SAFE_PAYLOAD_RE.match(payload):
         raise MetasploitAdapterError(
-            f"payload {payload!r} does not match "
-            f"platform/arch/type[/name] shape"
+            f"payload {payload!r} does not match platform/arch/type[/name] shape"
         )
 
 
 def _rc_text(
     *,
-    module: str, hostname: str, port: int, scheme: str,
-    spool_path: Path, is_exploit: bool, payload: str | None,
+    module: str,
+    hostname: str,
+    port: int,
+    scheme: str,
+    spool_path: Path,
+    is_exploit: bool,
+    payload: str | None,
     options: dict[str, str],
 ) -> str:
     """Generate the .rc resource script with full value validation."""
@@ -252,9 +265,7 @@ def _rc_text(
     if not (1 <= int(port) <= 65535):
         raise MetasploitAdapterError(f"port out of range: {port!r}")
     if scheme not in ("http", "https"):
-        raise MetasploitAdapterError(
-            f"scheme must be http or https: {scheme!r}"
-        )
+        raise MetasploitAdapterError(f"scheme must be http or https: {scheme!r}")
 
     for k, v in options.items():
         if k not in _RC_ALLOWED_OPTION_KEYS:
@@ -318,8 +329,17 @@ def _prepare_run_dir() -> tuple[Path, Path, Path, Path]:
     (msf4 / "config").write_text("", encoding="utf-8")
     (msf4 / "initial_setup_complete").write_text("", encoding="utf-8")
     (msf4 / "database.yml").write_text("", encoding="utf-8")
-    for d in ("logs", "local", "store", "histories", "loot",
-              "plugins", "modules", "data", "bootsnap_cache"):
+    for d in (
+        "logs",
+        "local",
+        "store",
+        "histories",
+        "loot",
+        "plugins",
+        "modules",
+        "data",
+        "bootsnap_cache",
+    ):
         (msf4 / d).mkdir(exist_ok=True)
 
     all_dirs = [run_dir, home_dir, msf4, *msf4.rglob("*")]
@@ -329,15 +349,12 @@ def _prepare_run_dir() -> tuple[Path, Path, Path, Path]:
         try:
             os.chmod(d, 0o750)
         except OSError as e:
-            raise MetasploitAdapterError(
-                f"chmod 0o750 failed on {d}: {e}"
-            ) from e
+            raise MetasploitAdapterError(f"chmod 0o750 failed on {d}: {e}") from e
         result = _sp.run(
-            ["setfacl",
-             "-m", "u:nobody:rwx",
-             "-m", f"d:u:{os.getuid()}:rwx",
-             str(d)],
-            capture_output=True, text=True, timeout=5,
+            ["setfacl", "-m", "u:nobody:rwx", "-m", f"d:u:{os.getuid()}:rwx", str(d)],
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode != 0:
             raise MetasploitAdapterError(
@@ -347,8 +364,7 @@ def _prepare_run_dir() -> tuple[Path, Path, Path, Path]:
                 "support."
             )
 
-    for f in (msf4 / "config", msf4 / "initial_setup_complete",
-              msf4 / "database.yml"):
+    for f in (msf4 / "config", msf4 / "initial_setup_complete", msf4 / "database.yml"):
         try:
             os.chmod(f, 0o640)
         except OSError:
@@ -358,9 +374,20 @@ def _prepare_run_dir() -> tuple[Path, Path, Path, Path]:
 
 
 def _run(
-    *, db, engagement_id, approval_id, target_hostname, port, scheme,
-    engagements_root, module, is_exploit, payload, options,
-    actor, timeout_seconds,
+    *,
+    db,
+    engagement_id,
+    approval_id,
+    target_hostname,
+    port,
+    scheme,
+    engagements_root,
+    module,
+    is_exploit,
+    payload,
+    options,
+    actor,
+    timeout_seconds,
 ) -> MetasploitRunResult:
     db_obj, owns = coerce_db(db)
     run_dir: Path | None = None
@@ -380,7 +407,8 @@ def _run(
             _validate_check_module(module)
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            METASPLOIT_TOOL_NAME, METASPLOIT_VERSION,
+            METASPLOIT_TOOL_NAME,
+            METASPLOIT_VERSION,
         )
         if manifest is None:
             raise MetasploitAdapterError(
@@ -394,16 +422,22 @@ def _run(
 
         run_dir, home_dir, msf4, spool = _prepare_run_dir()
         rc_path = run_dir / "run.rc"
-        rc_path.write_text(_rc_text(
-            module=module, hostname=target_hostname, port=port,
-            scheme=scheme, spool_path=spool, is_exploit=is_exploit,
-            payload=payload, options=options,
-        ), encoding="utf-8")
+        rc_path.write_text(
+            _rc_text(
+                module=module,
+                hostname=target_hostname,
+                port=port,
+                scheme=scheme,
+                spool_path=spool,
+                is_exploit=is_exploit,
+                payload=payload,
+                options=options,
+            ),
+            encoding="utf-8",
+        )
         os.chmod(rc_path, 0o644)
 
-        profile_name = (
-            "metasploit/exploit" if is_exploit else "metasploit/check"
-        )
+        profile_name = "metasploit/exploit" if is_exploit else "metasploit/check"
         params = {
             "module": module,
             "hostname": target_hostname,
@@ -449,12 +483,14 @@ def _run(
 
         spool_text = (
             spool.read_text(encoding="utf-8", errors="replace")
-            if spool.is_file() else ""
+            if spool.is_file()
+            else ""
         )
         findings = parse_spool(spool_text)
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"metasploit_{module.replace('/', '_')}_{target_hostname}_{port}.txt",
             content_type="text/plain",
@@ -462,7 +498,8 @@ def _run(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -472,7 +509,8 @@ def _run(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="metasploit_run",
             decision="ok" if result.exit_code == 0 else "error",
             details={
@@ -519,11 +557,19 @@ def run_metasploit_check(
 ) -> MetasploitRunResult:
     """Run msfconsole check on an auxiliary module (Class 2, DB-free)."""
     return _run(
-        db=db, engagement_id=engagement_id, approval_id=approval_id,
-        target_hostname=target_hostname, port=port, scheme=scheme,
-        engagements_root=engagements_root, module=module,
-        is_exploit=False, payload=None, options=dict(options or {}),
-        actor=actor, timeout_seconds=timeout_seconds,
+        db=db,
+        engagement_id=engagement_id,
+        approval_id=approval_id,
+        target_hostname=target_hostname,
+        port=port,
+        scheme=scheme,
+        engagements_root=engagements_root,
+        module=module,
+        is_exploit=False,
+        payload=None,
+        options=dict(options or {}),
+        actor=actor,
+        timeout_seconds=timeout_seconds,
     )
 
 
@@ -544,9 +590,17 @@ def run_metasploit_exploit(
 ) -> MetasploitRunResult:
     """Run msfconsole exploit on an exploit module (Class 3, LAB-ONLY)."""
     return _run(
-        db=db, engagement_id=engagement_id, approval_id=approval_id,
-        target_hostname=target_hostname, port=port, scheme=scheme,
-        engagements_root=engagements_root, module=module,
-        is_exploit=True, payload=payload, options=dict(options or {}),
-        actor=actor, timeout_seconds=timeout_seconds,
+        db=db,
+        engagement_id=engagement_id,
+        approval_id=approval_id,
+        target_hostname=target_hostname,
+        port=port,
+        scheme=scheme,
+        engagements_root=engagements_root,
+        module=module,
+        is_exploit=True,
+        payload=payload,
+        options=dict(options or {}),
+        actor=actor,
+        timeout_seconds=timeout_seconds,
     )

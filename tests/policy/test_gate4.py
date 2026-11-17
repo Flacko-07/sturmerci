@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 4: redaction fires before prompt assembly."""
+
 import pytest
 
 from sentinel.evidence.redact import (
@@ -8,7 +9,7 @@ from sentinel.evidence.redact import (
 )
 
 AWS = "AKIAIOSFODNN7EXAMPLE"
-GH  = "ghp_" + "A" * 36
+GH = "ghp_" + "A" * 36
 JWT = ".".join(["eyJhbGciOiJIUzI1NiJ9", "eyJzdWIiOiIxMjM0In0", "abc-_def123"])
 EMAIL = "analyst@example.com"
 
@@ -30,7 +31,9 @@ def test_jwt_redacted():
     out, rec = redact(f"Authorization: Bearer {JWT}")
     # jwt rule OR auth_header rule may fire; at least one must
     assert JWT not in out
-    assert rec.rules_applied.get("jwt", 0) + rec.rules_applied.get("auth_header", 0) >= 1
+    assert (
+        rec.rules_applied.get("jwt", 0) + rec.rules_applied.get("auth_header", 0) >= 1
+    )
 
 
 def test_cookie_header_redacted():

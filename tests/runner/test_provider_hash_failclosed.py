@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Batch A: _verify_provider_hash must fail-closed on empty stored hash
 when providers are declared."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -9,7 +10,8 @@ import pytest
 
 from sentinel.approval.store import infrastructure_endpoints_hash
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, _verify_provider_hash,
+    SandboxDenied,
+    _verify_provider_hash,
 )
 
 

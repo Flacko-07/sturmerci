@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """CA module unit tests. No root needed."""
+
 import ssl
-from pathlib import Path
 
 import pytest
 from cryptography import x509
@@ -46,9 +46,7 @@ def test_sign_leaf_for_hostname(ca):
     # Cert parses
     cert = x509.load_pem_x509_certificate(leaf.cert_path.read_bytes())
     # SAN includes the hostname
-    san = cert.extensions.get_extension_for_class(
-        x509.SubjectAlternativeName
-    ).value
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     dns_names = san.get_values_for_type(x509.DNSName)
     assert "app.example.com" in dns_names
 
@@ -56,9 +54,7 @@ def test_sign_leaf_for_hostname(ca):
 def test_sign_leaf_cn_matches(ca):
     leaf = ca.sign_leaf("api.example.com")
     cert = x509.load_pem_x509_certificate(leaf.cert_path.read_bytes())
-    cn = cert.subject.get_attributes_for_oid(
-        x509.oid.NameOID.COMMON_NAME
-    )[0].value
+    cn = cert.subject.get_attributes_for_oid(x509.oid.NameOID.COMMON_NAME)[0].value
     assert cn == "api.example.com"
 
 
@@ -66,9 +62,7 @@ def test_sign_leaf_trailing_dot_normalized(ca):
     leaf = ca.sign_leaf("app.example.com.")
     assert leaf.common_name == "app.example.com"
     cert = x509.load_pem_x509_certificate(leaf.cert_path.read_bytes())
-    san = cert.extensions.get_extension_for_class(
-        x509.SubjectAlternativeName
-    ).value
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert "app.example.com" in san.get_values_for_type(x509.DNSName)
 
 
@@ -80,9 +74,7 @@ def test_sign_leaf_uppercase_normalized(ca):
 def test_sign_leaf_for_ip(ca):
     leaf = ca.sign_leaf("203.0.113.42")
     cert = x509.load_pem_x509_certificate(leaf.cert_path.read_bytes())
-    san = cert.extensions.get_extension_for_class(
-        x509.SubjectAlternativeName
-    ).value
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     ips = san.get_values_for_type(x509.IPAddress)
     assert len(ips) == 1
     assert str(ips[0]) == "203.0.113.42"
@@ -142,9 +134,7 @@ def test_leaf_for_different_hostname_does_not_verify(tmp_path):
     c.generate()
     leaf = c.sign_leaf("app.example.com")
     cert = x509.load_pem_x509_certificate(leaf.cert_path.read_bytes())
-    san = cert.extensions.get_extension_for_class(
-        x509.SubjectAlternativeName
-    ).value
+    san = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     dns_names = san.get_values_for_type(x509.DNSName)
     # Cert for app.example.com; check_hostname against other.test must fail
     assert "other.test" not in dns_names
@@ -161,16 +151,13 @@ def test_leaf_akid_matches_ca_skid(ca, tmp_path):
     akid = leaf_cert.extensions.get_extension_for_class(
         _x509.AuthorityKeyIdentifier
     ).value
-    skid = ca_cert.extensions.get_extension_for_class(
-        _x509.SubjectKeyIdentifier
-    ).value
+    skid = ca_cert.extensions.get_extension_for_class(_x509.SubjectKeyIdentifier).value
     assert akid.key_identifier == skid.digest
 
 
 def test_ca_has_subject_key_identifier(ca, tmp_path):
     from cryptography import x509 as _x509
+
     cert = _x509.load_pem_x509_certificate(ca.ca_cert_path.read_bytes())
-    skid = cert.extensions.get_extension_for_class(
-        _x509.SubjectKeyIdentifier
-    ).value
+    skid = cert.extensions.get_extension_for_class(_x509.SubjectKeyIdentifier).value
     assert len(skid.digest) == 20  # SHA-1 hash is 20 bytes

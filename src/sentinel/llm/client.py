@@ -5,6 +5,7 @@ This module is the only sanctioned path from application code to the
 model. Direct `ollama.chat()` calls outside this file are a code-review
 reject (same policy as SandboxRunner for network adapters).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -33,15 +34,15 @@ DEFAULT_TEMPERATURE = 0.0
 # HTTP client's timeout closes the request and releases its slot in finally.
 # The cap makes service-side queuing visible and bounded within this process.
 _MAX_CONCURRENT_OLLAMA_CALLS = 2
-_ollama_slots = __import__("threading").BoundedSemaphore(
-    _MAX_CONCURRENT_OLLAMA_CALLS
-)
+_ollama_slots = __import__("threading").BoundedSemaphore(_MAX_CONCURRENT_OLLAMA_CALLS)
 
 
 def _ollama_chat(*, timeout: float, **kwargs):
     """Perform chat through an Ollama client with a real HTTP timeout."""
     with _OllamaClient(timeout=timeout) as client:
         return client.chat(**kwargs)
+
+
 DEFAULT_MAX_RETRIES = 2
 DEFAULT_TIMEOUT_SECONDS = 180.0
 MAX_USER_CONTENT_CHARS = 32 * 1024
@@ -126,7 +127,7 @@ def _verify_loopback_endpoint() -> None:
         return
     for prefix in ("http://", "https://"):
         if raw.startswith(prefix):
-            raw = raw[len(prefix):]
+            raw = raw[len(prefix) :]
             break
     if raw.startswith("["):
         end = raw.find("]")
@@ -148,9 +149,7 @@ def _check_circuit() -> None:
     if _CIRCUIT.opened_at is not None:
         if now - _CIRCUIT.opened_at < CIRCUIT_OPEN_SECONDS:
             remaining = int(CIRCUIT_OPEN_SECONDS - (now - _CIRCUIT.opened_at))
-            raise LLMCircuitOpen(
-                f"circuit breaker open; retry in {remaining}s"
-            )
+            raise LLMCircuitOpen(f"circuit breaker open; retry in {remaining}s")
         _CIRCUIT.opened_at = None
         _CIRCUIT.failures.clear()
 
@@ -191,20 +190,18 @@ def _record_timeout_run(
     find Ollama slowness.
     """
     from sentinel.storage.db import coerce_db as _coerce
+
     try:
         db_obj, owns = _coerce(db)
         try:
             store = ModelRunStore(db_obj)
-            import uuid as _uuid
-            from datetime import datetime as _dt, timezone as _tz
             store.record(
                 engagement_id=engagement_id,
                 model_id=model,
                 prompt_template_hash=prompt_hash,
                 schema_version=schema_version,
                 sanitized_input_hash=input_hash,
-                settings={"timeout_seconds": timeout_seconds,
-                          "outcome_reason": reason},
+                settings={"timeout_seconds": timeout_seconds, "outcome_reason": reason},
                 duration_sec=duration,
                 outcome=outcome,
                 retry_count=0,
@@ -260,8 +257,7 @@ def call_structured(
         for key, value in prompt_context.items():
             if not isinstance(value, str):
                 raise LLMError(
-                    f"prompt_context[{key!r}] must be str, "
-                    f"got {type(value).__name__}"
+                    f"prompt_context[{key!r}] must be str, got {type(value).__name__}"
                 )
             sanitized_ctx, _ = redact(value)
             try:
@@ -292,8 +288,11 @@ def call_structured(
     db_obj, owns_db = coerce_db(db)
     try:
         run_store = ModelRunStore(db_obj)
-        settings = {"temperature": temperature, "num_ctx": num_ctx,
-                    "timeout_seconds": timeout_seconds}
+        settings = {
+            "temperature": temperature,
+            "num_ctx": num_ctx,
+            "timeout_seconds": timeout_seconds,
+        }
 
         for attempt in range(max_retries + 1):
             start = time.monotonic()
@@ -311,8 +310,10 @@ def call_structured(
                 # internal queue build up invisibly.
                 if not _ollama_slots.acquire(blocking=False):
                     _record_timeout_run(
-                        db=db, engagement_id=engagement_id,
-                        model=model, prompt_hash=prompt.hash,
+                        db=db,
+                        engagement_id=engagement_id,
+                        model=model,
+                        prompt_hash=prompt.hash,
                         input_hash=input_hash,
                         schema_version=schema_version,
                         duration=0.0,
@@ -330,10 +331,14 @@ def call_structured(
                     response = _ollama_chat(**_kwargs)
                 except Exception as _request_error:
                     import httpx as _httpx
+
                     if isinstance(_request_error, _httpx.TimeoutException):
                         _record_timeout_run(
-                            db=db, engagement_id=engagement_id, model=model,
-                            prompt_hash=prompt.hash, input_hash=input_hash,
+                            db=db,
+                            engagement_id=engagement_id,
+                            model=model,
+                            prompt_hash=prompt.hash,
+                            input_hash=input_hash,
                             schema_version=schema_version,
                             duration=time.monotonic() - start,
                             reason=type(_request_error).__name__,
@@ -371,8 +376,7 @@ def call_structured(
                         time.sleep(1.0)
                         continue
                     raise LLMError(
-                        f"schema validation failed after {attempt + 1} "
-                        f"attempts: {e}"
+                        f"schema validation failed after {attempt + 1} attempts: {e}"
                     ) from e
 
                 duration = time.monotonic() - start

@@ -11,6 +11,7 @@ Design decisions:
   - Output parsed defensively against both `vulnerabilities` and `items`
     keys (nikto's JSON schema varies by version).
 """
+
 from __future__ import annotations
 
 import json
@@ -26,10 +27,10 @@ from sentinel.tools.manifests import ManifestStore
 
 
 NIKTO_TOOL_NAME = "nikto"
-NIKTO_VERSION = "2.5.0"          # replaced by Block 2 registration
+NIKTO_VERSION = "2.5.0"  # replaced by Block 2 registration
 PROFILE = "web_server_scan"
 ALLOWED_TUNINGS = "123"
-MAX_RATE = 20                     # nikto is slow; cap at 20 rps
+MAX_RATE = 20  # nikto is slow; cap at 20 rps
 MAX_MAXTIME_SECONDS = 900
 
 
@@ -80,13 +81,15 @@ def parse_output(stdout: str) -> tuple[list[NiktoFinding], str]:
         msg = str(r.get("msg", "") or "")
         if not url and not msg:
             continue
-        out.append(NiktoFinding(
-            item_id=str(r.get("id", "") or "")[:20],
-            method=str(r.get("method", "") or "")[:10],
-            url=url[:500],
-            msg=msg[:2000],
-            references=str(r.get("references", "") or "")[:500],
-        ))
+        out.append(
+            NiktoFinding(
+                item_id=str(r.get("id", "") or "")[:20],
+                method=str(r.get("method", "") or "")[:10],
+                url=url[:500],
+                msg=msg[:2000],
+                references=str(r.get("references", "") or "")[:500],
+            )
+        )
     return out, banner
 
 
@@ -116,7 +119,8 @@ def run_nikto(
         maxtime = min(timeout_seconds, MAX_MAXTIME_SECONDS)
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            NIKTO_TOOL_NAME, NIKTO_VERSION,
+            NIKTO_TOOL_NAME,
+            NIKTO_VERSION,
         )
         if manifest is None:
             raise NiktoAdapterError(
@@ -135,6 +139,7 @@ def run_nikto(
         }
         # Builder is authoritative; runner rebuilds and compares.
         from sentinel.runner.profiles import build_argv_for_profile
+
         argv = build_argv_for_profile(
             profile_name="nikto/web_server_scan",
             executable_path=manifest.manifest.executable_path,
@@ -173,7 +178,8 @@ def run_nikto(
         findings, banner = parse_output(result.stdout or "")
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"nikto_{target_hostname}_{port}.json",
             content_type="application/json",
@@ -181,7 +187,8 @@ def run_nikto(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -191,7 +198,8 @@ def run_nikto(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="nikto_run",
             decision="ok" if result.exit_code == 0 else "error",
             details={

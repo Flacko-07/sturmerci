@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Filesystem layout for Sentinel. Engagement dirs get 0700."""
+
 from __future__ import annotations
 
 import os
@@ -44,16 +45,20 @@ DEFAULT_ENGAGEMENTS_ROOT = _default_engagements_path()
 
 
 def ensure_engagement_dirs(base_dir: Path, engagement_id: str) -> dict[str, Path]:
-    if not engagement_id.startswith("eng_") or "/" in engagement_id or ".." in engagement_id:
+    if (
+        not engagement_id.startswith("eng_")
+        or "/" in engagement_id
+        or ".." in engagement_id
+    ):
         raise ValueError(f"unsafe engagement id: {engagement_id!r}")
     root = base_dir / engagement_id
     dirs = {
-        "root":          root,
-        "artifacts":     root / "artifacts",
+        "root": root,
+        "artifacts": root / "artifacts",
         "artifacts_raw": root / "artifacts_raw",
-        "findings":      root / "findings",
-        "reports":       root / "reports",
-        "logs":          root / "logs",
+        "findings": root / "findings",
+        "reports": root / "reports",
+        "logs": root / "logs",
     }
     for p in dirs.values():
         p.mkdir(parents=True, exist_ok=True)

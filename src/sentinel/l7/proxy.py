@@ -26,6 +26,7 @@ trusted by the sandbox. This is no worse than the sandbox itself being
 compromised. For the scanner not to trust a rogue CA, the CA is rotated
 per run and the tool's SSL_CERT_FILE is set to that run's CA only.
 """
+
 from __future__ import annotations
 
 import select
@@ -34,7 +35,7 @@ import ssl
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 from sentinel.l7.ca import CAError, L7CA
 
@@ -86,6 +87,7 @@ class ProxyDecision:
 
 class RequestFilter(Protocol):
     """Decides whether to forward a parsed request."""
+
     def __call__(self, req: ProxyRequest) -> ProxyDecision: ...
 
 
@@ -124,7 +126,8 @@ class TLSProxy:
         # None = no hostname restriction (unit tests, direct use).
         self._allowed_connect_hosts = (
             {h.lower().rstrip(".") for h in allowed_connect_hosts}
-            if allowed_connect_hosts is not None else None
+            if allowed_connect_hosts is not None
+            else None
         )
         # Pinned upstream IPs per hostname. When set (dict not None),
         # the proxy resolves nothing itself -- it uses only the IPs
@@ -133,7 +136,8 @@ class TLSProxy:
         # IPs. If a hostname has no entry, CONNECT is refused.
         self._pinned_upstreams = (
             {h.lower().rstrip("."): list(ips) for h, ips in pinned_upstreams.items()}
-            if pinned_upstreams is not None else None
+            if pinned_upstreams is not None
+            else None
         )
         self._listen_sock: socket.socket | None = None
         self._thread: threading.Thread | None = None
@@ -160,7 +164,9 @@ class TLSProxy:
         self._listen_sock = sock
         self._stopped.clear()
         self._thread = threading.Thread(
-            target=self._accept_loop, daemon=True, name="tlsproxy-accept",
+            target=self._accept_loop,
+            daemon=True,
+            name="tlsproxy-accept",
         )
         self._thread.start()
 
@@ -185,11 +191,12 @@ class TLSProxy:
             except OSError:
                 break
             t = threading.Thread(
-                target=self._handle_client, args=(client, addr),
-                daemon=True, name="tlsproxy-client",
+                target=self._handle_client,
+                args=(client, addr),
+                daemon=True,
+                name="tlsproxy-client",
             )
             t.start()
-
 
     def _handle_client(self, client: socket.socket, addr) -> None:
         with self._active_lock:
@@ -212,8 +219,12 @@ class TLSProxy:
             pass
         except Exception as e:
             import sys
-            print(f"[tlsproxy] handler error from {addr}: {e}",
-                  file=sys.stderr, flush=True)
+
+            print(
+                f"[tlsproxy] handler error from {addr}: {e}",
+                file=sys.stderr,
+                flush=True,
+            )
         finally:
             try:
                 client.close()
@@ -235,26 +246,35 @@ class TLSProxy:
 
         first_line = raw_connect.split(b"\r\n", 1)[0]
         if not first_line.upper().startswith(b"CONNECT "):
-            _send_simple(client, b"HTTP/1.1 405 Method Not Allowed\r\n"
-                                 b"Content-Length: 0\r\n"
-                                 b"Connection: close\r\n\r\n")
+            _send_simple(
+                client,
+                b"HTTP/1.1 405 Method Not Allowed\r\n"
+                b"Content-Length: 0\r\n"
+                b"Connection: close\r\n\r\n",
+            )
             return
 
-        rest = first_line[len(b"CONNECT "):].split(b" ", 1)[0]
+        rest = first_line[len(b"CONNECT ") :].split(b" ", 1)[0]
         try:
             host_b, port_b = rest.rsplit(b":", 1)
             hostname = host_b.decode("ascii").lower().strip("[]")
             port = int(port_b.decode("ascii"))
         except (ValueError, UnicodeDecodeError):
-            _send_simple(client, b"HTTP/1.1 400 Bad Request\r\n"
-                                 b"Content-Length: 0\r\n"
-                                 b"Connection: close\r\n\r\n")
+            _send_simple(
+                client,
+                b"HTTP/1.1 400 Bad Request\r\n"
+                b"Content-Length: 0\r\n"
+                b"Connection: close\r\n\r\n",
+            )
             return
 
         if not hostname or not (1 <= port <= 65535):
-            _send_simple(client, b"HTTP/1.1 400 Bad Request\r\n"
-                                 b"Content-Length: 0\r\n"
-                                 b"Connection: close\r\n\r\n")
+            _send_simple(
+                client,
+                b"HTTP/1.1 400 Bad Request\r\n"
+                b"Content-Length: 0\r\n"
+                b"Connection: close\r\n\r\n",
+            )
             return
 
         # Host allowlist (M7.2b). Refuses CONNECT to unapproved SNI/host
@@ -265,18 +285,24 @@ class TLSProxy:
         if self._allowed_connect_hosts is not None:
             normalized = hostname.lower().rstrip(".")
             if normalized not in self._allowed_connect_hosts:
-                _send_simple(client, b"HTTP/1.1 403 Forbidden\r\n"
-                                     b"Content-Length: 0\r\n"
-                                     b"Connection: close\r\n\r\n")
+                _send_simple(
+                    client,
+                    b"HTTP/1.1 403 Forbidden\r\n"
+                    b"Content-Length: 0\r\n"
+                    b"Connection: close\r\n\r\n",
+                )
                 return
 
         # Sign a leaf for the requested hostname.
         try:
             leaf = self._ca.sign_leaf(hostname)
-        except CAError as e:
-            _send_simple(client, b"HTTP/1.1 400 Bad Request\r\n"
-                                 b"Content-Length: 0\r\n"
-                                 b"Connection: close\r\n\r\n")
+        except CAError:
+            _send_simple(
+                client,
+                b"HTTP/1.1 400 Bad Request\r\n"
+                b"Content-Length: 0\r\n"
+                b"Connection: close\r\n\r\n",
+            )
             return
 
         # 200 Connection Established, then switch to TLS.
@@ -467,7 +493,8 @@ class TLSProxy:
 
         try:
             upstream_raw = socket.create_connection(
-                (connect_ip, port), timeout=REQUEST_READ_TIMEOUT,
+                (connect_ip, port),
+                timeout=REQUEST_READ_TIMEOUT,
             )
         except OSError:
             try:
@@ -494,7 +521,8 @@ class TLSProxy:
             upstream_ctx.set_alpn_protocols(["http/1.1"])
             try:
                 tls_upstream = upstream_ctx.wrap_socket(
-                    upstream_raw, server_hostname=hostname,
+                    upstream_raw,
+                    server_hostname=hostname,
                 )
             except (ssl.SSLError, OSError):
                 upstream_raw.close()
@@ -515,7 +543,8 @@ class TLSProxy:
             try:
                 tls_upstream.sendall(head)
                 _relay_bidir(
-                    tls_client, tls_upstream,
+                    tls_client,
+                    tls_upstream,
                     max_bytes=self._max_relay_bytes,
                     max_duration=self._max_duration,
                 )
@@ -543,6 +572,7 @@ class TLSProxy:
 # ---------------------------------------------------------------------------
 # Small helpers kept module-level for easy unit testing
 # ---------------------------------------------------------------------------
+
 
 def _read_until(sock: socket.socket, delim: bytes, max_bytes: int) -> bytes:
     """Read from sock until delim is found. Raises ProxyError if over limit."""
@@ -588,13 +618,9 @@ def _assert_no_request_body(head: bytes) -> None:
                     f"invalid Content-Length: {value.strip()!r}"
                 ) from e
             if n > 0:
-                raise RequestBodyRefused(
-                    f"request body of {n} bytes not permitted"
-                )
+                raise RequestBodyRefused(f"request body of {n} bytes not permitted")
         if lname == "transfer-encoding" and "chunked" in lvalue:
-            raise RequestBodyRefused(
-                "chunked request body not permitted"
-            )
+            raise RequestBodyRefused("chunked request body not permitted")
 
 
 def _parse_host_header(host_value: str) -> tuple[str, int | None]:
@@ -620,7 +646,7 @@ def _parse_host_header(host_value: str) -> tuple[str, int | None]:
         hostname = host[1:end]
         if not hostname:
             raise ValueError("empty IPv6 hostname")
-        rest = host[end + 1:]
+        rest = host[end + 1 :]
         if not rest:
             return hostname, None
         if not rest.startswith(":"):
@@ -650,7 +676,9 @@ def _parse_host_header(host_value: str) -> tuple[str, int | None]:
 
 
 def _parse_request_head(
-    head: bytes, hostname: str, port: int,
+    head: bytes,
+    hostname: str,
+    port: int,
 ) -> ProxyRequest:
     """Parse an HTTP/1.1 request head (headers only, no body)."""
     try:
@@ -684,7 +712,9 @@ def _parse_request_head(
 
 
 def _relay_bidir(
-    a: socket.socket, b: socket.socket, *,
+    a: socket.socket,
+    b: socket.socket,
+    *,
     max_bytes: int = MAX_RELAY_BYTES,
     max_duration: float = MAX_CONNECTION_DURATION,
 ) -> None:
@@ -707,6 +737,7 @@ def _relay_bidir(
         return
     sockets = [a, b]
     import time as _t
+
     started = _t.monotonic()
     total = 0
     try:

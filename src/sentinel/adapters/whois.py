@@ -7,17 +7,12 @@ engagement, same pattern as Subfinder/crt.sh. The target domain is
 sent to the provider (this is disclosed metadata), so provider
 authorization must include consent for that disclosure.
 """
+
 from __future__ import annotations
 
-import hashlib
-import json
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from sentinel.audit.store import AuditStore
-from sentinel.assets.store import AssetStore
-from sentinel.engagement.store import EngagementStore
 from sentinel.evidence.ingest import ingest_evidence, IngestResult
 from sentinel.runner.sandbox_runner import SandboxRequest, run_in_sandbox
 from sentinel.storage.db import Database, coerce_db
@@ -25,7 +20,7 @@ from sentinel.tools.manifests import ManifestStore
 
 
 WHOIS_TOOL_NAME = "whois"
-WHOIS_VERSION = "5.5.21"   # adjust after apt install
+WHOIS_VERSION = "5.5.21"  # adjust after apt install
 PROFILE = "whois/target_lookup"
 
 # Default whois server per TLD. The operator's approval must list the
@@ -36,7 +31,7 @@ DEFAULT_SERVERS = {
     "com": "whois.verisign-grs.com",
     "net": "whois.verisign-grs.com",
     "org": "whois.pir.org",
-    "io":  "whois.nic.io",
+    "io": "whois.nic.io",
 }
 
 
@@ -87,7 +82,8 @@ def run_whois(
             )
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            WHOIS_TOOL_NAME, WHOIS_VERSION,
+            WHOIS_TOOL_NAME,
+            WHOIS_VERSION,
         )
         if manifest is None:
             raise WhoisAdapterError(
@@ -103,13 +99,14 @@ def run_whois(
             path="/",
             argv=[
                 manifest.manifest.executable_path,
-                "--server", server,
+                "--server",
+                server,
                 target_domain,
             ],
             timeout_seconds=timeout_seconds,
             additional_ports=(),
             provider_endpoints=(server,),
-            provider_ports={server: 43},   # whois uses RFC 3912 port 43
+            provider_ports={server: 43},  # whois uses RFC 3912 port 43
             requires_target_connection=False,  # target domain is only a query argument
             estimated_requests=1,
             operation_profile="whois/target_lookup",
@@ -132,7 +129,8 @@ def run_whois(
         )
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"whois_{target_domain}.txt",
             content_type="text/plain",
@@ -140,7 +138,8 @@ def run_whois(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,

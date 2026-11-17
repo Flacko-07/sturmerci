@@ -9,6 +9,7 @@ Any of the three missing = SandboxDenied before spawn.
 Writes discovered subdomains to candidate_assets. Never to
 approved_assets — the operator promotes explicitly.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,10 @@ from pathlib import Path
 
 from sentinel.assets.store import AssetStore
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, SandboxRequest, SandboxResult, run_in_sandbox,
+    SandboxDenied,
+    SandboxRequest,
+    SandboxResult,
+    run_in_sandbox,
 )
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
@@ -72,17 +76,17 @@ def parse_output(stdout: str) -> list[SubfinderFinding]:
         host = obj.get("host")
         if not isinstance(host, str) or not host:
             continue
-        findings.append(SubfinderFinding(
-            host=host,
-            input_domain=str(obj.get("input") or ""),
-            source=str(obj.get("source") or "unknown"),
-        ))
+        findings.append(
+            SubfinderFinding(
+                host=host,
+                input_domain=str(obj.get("input") or ""),
+                source=str(obj.get("source") or "unknown"),
+            )
+        )
     return findings
 
 
-def validate_result_host(
-    host: str, target_domain: str
-) -> tuple[bool, str | None]:
+def validate_result_host(host: str, target_domain: str) -> tuple[bool, str | None]:
     """Return (is_valid, reason_if_invalid).
 
     Valid = DNS hostname, no wildcards, ends in .<target> or equals target.
@@ -130,7 +134,8 @@ def run_subfinder(
     db_obj, owns_db = coerce_db(db)
     try:
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            SUBFINDER_TOOL_NAME, SUBFINDER_VERSION,
+            SUBFINDER_TOOL_NAME,
+            SUBFINDER_VERSION,
         )
         if manifest is None:
             raise SandboxDenied(
@@ -153,8 +158,10 @@ def run_subfinder(
 
         argv = [
             manifest.manifest.executable_path,
-            "-d", target_domain,
-            "-sources", "crtsh",
+            "-d",
+            target_domain,
+            "-sources",
+            "crtsh",
             "-silent",
             "-json",
             "-nc",
@@ -250,7 +257,7 @@ def run_subfinder(
             candidates_skipped_duplicate=duplicates,
             sandbox=sandbox_result,
             execution_status=sandbox_result.execution_status,
-    )
+        )
     finally:
         if owns_db:
             db_obj.close()

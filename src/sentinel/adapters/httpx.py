@@ -9,17 +9,20 @@ Path-restricted scopes, redirects, custom headers, and non-GET/HEAD
 methods are refused. See docs/m7-web-inventory-design.md for the
 L7-gap rationale.
 """
+
 from __future__ import annotations
 
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from sentinel.assets.store import AssetStore
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, SandboxRequest, SandboxResult, run_in_sandbox,
+    SandboxDenied,
+    SandboxRequest,
+    SandboxResult,
+    run_in_sandbox,
 )
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
@@ -33,22 +36,31 @@ ALLOWED_METHODS = ("GET", "HEAD")
 ALLOWED_SCHEMES = ("https", "http")
 
 FORBIDDEN_FLAGS = (
-    "-path", "-paths", "-p",            # path scope
-    "-follow-redirects", "-fr",         # redirects escape approval
-    "-H", "-header",                    # arbitrary headers
-    "-body",                            # request body
+    "-path",
+    "-paths",
+    "-p",  # path scope
+    "-follow-redirects",
+    "-fr",  # redirects escape approval
+    "-H",
+    "-header",  # arbitrary headers
+    "-body",  # request body
     # NOTE: -x IS allowed -- it carries the method (GET or HEAD, validated
     # by build_argv before this check runs). -X (capital) and -method are
     # both forbidden so a caller cannot smuggle an alternate method flag
     # past the profile builder. See M7-P0-E.
     "-X",
     "-method",
-    "-http-proxy", "-proxy",            # proxy
-    "-websocket", "-ws",                # ws upgrade
-    "-auth",                            # auth injection
-    "-dc", "-dashboard",                # external dashboard = provider
-    "-sr", "-store-response",           # filesystem writes outside artifacts
-    "-screenshot", "-ss",               # chromedriver side channel
+    "-http-proxy",
+    "-proxy",  # proxy
+    "-websocket",
+    "-ws",  # ws upgrade
+    "-auth",  # auth injection
+    "-dc",
+    "-dashboard",  # external dashboard = provider
+    "-sr",
+    "-store-response",  # filesystem writes outside artifacts
+    "-screenshot",
+    "-ss",  # chromedriver side channel
 )
 
 # Hostname pattern: letters/digits/hyphen labels, dots, no wildcards.
@@ -111,13 +123,9 @@ def build_argv(
     if not (1 <= port <= 65535):
         raise HttpxAdapterError(f"invalid port: {port!r}")
     if scheme not in ALLOWED_SCHEMES:
-        raise HttpxAdapterError(
-            f"scheme {scheme!r} not in {ALLOWED_SCHEMES}"
-        )
+        raise HttpxAdapterError(f"scheme {scheme!r} not in {ALLOWED_SCHEMES}")
     if method not in ALLOWED_METHODS:
-        raise HttpxAdapterError(
-            f"method {method!r} not in {ALLOWED_METHODS}"
-        )
+        raise HttpxAdapterError(f"method {method!r} not in {ALLOWED_METHODS}")
 
     url = f"{scheme}://{hostname}:{port}/"
     # -x <METHOD> is required so the adapter's argv matches what the
@@ -126,8 +134,10 @@ def build_argv(
     # approval authorized HEAD.
     argv = [
         executable_path,
-        "-u", url,
-        "-x", method,
+        "-u",
+        url,
+        "-x",
+        method,
         "-silent",
         "-json",
         "-nc",
@@ -157,7 +167,9 @@ def parse_output(jsonl: str) -> list[WebEndpointObservation]:
             continue
         tls = obj.get("tls") if isinstance(obj.get("tls"), dict) else {}
         tech = obj.get("tech") if isinstance(obj.get("tech"), list) else []
-        dns_names = tls.get("dns_names") if isinstance(tls.get("dns_names"), list) else []
+        dns_names = (
+            tls.get("dns_names") if isinstance(tls.get("dns_names"), list) else []
+        )
         status = obj.get("status_code") or obj.get("status-code")
         if isinstance(status, str):
             try:
@@ -173,19 +185,21 @@ def parse_output(jsonl: str) -> list[WebEndpointObservation]:
             continue
         if not (0 <= port_val <= 65535):
             continue
-        findings.append(WebEndpointObservation(
-            url=url,
-            input_url=str(obj.get("input") or ""),
-            port=port_val,
-            scheme=str(obj.get("scheme") or ""),
-            status_code=status if isinstance(status, int) else None,
-            title=str(obj.get("title") or ""),
-            webserver=str(obj.get("webserver") or ""),
-            tech=tuple(str(t) for t in tech),
-            tls_subject_cn=str(tls.get("subject_cn") or ""),
-            tls_issuer=str(tls.get("issuer_cn") or ""),
-            tls_dns_names=tuple(str(n) for n in dns_names),
-        ))
+        findings.append(
+            WebEndpointObservation(
+                url=url,
+                input_url=str(obj.get("input") or ""),
+                port=port_val,
+                scheme=str(obj.get("scheme") or ""),
+                status_code=status if isinstance(status, int) else None,
+                title=str(obj.get("title") or ""),
+                webserver=str(obj.get("webserver") or ""),
+                tech=tuple(str(t) for t in tech),
+                tls_subject_cn=str(tls.get("subject_cn") or ""),
+                tls_issuer=str(tls.get("issuer_cn") or ""),
+                tls_dns_names=tuple(str(n) for n in dns_names),
+            )
+        )
     return findings
 
 
@@ -210,10 +224,10 @@ def _validate_observation(
     # M7-02: we only sent a request to /. If the observed URL reports
     # a different path, the tool followed a redirect or the response is
     # fabricated; either way it's out of scope for this inventory.
-    rest = obs.url[len(m.group(0)):]  # everything after "scheme://host:"
+    rest = obs.url[len(m.group(0)) :]  # everything after "scheme://host:"
     # Strip optional :port (already validated) then split off path
     if rest.startswith(str(target_port)):
-        rest = rest[len(str(target_port)):]
+        rest = rest[len(str(target_port)) :]
     path_part = rest.split("?", 1)[0].split("#", 1)[0]
     if path_part not in ("", "/"):
         return False, f"path_mismatch_{path_part[:40]}"
@@ -237,7 +251,8 @@ def run_httpx(
     db_obj, owns_db = coerce_db(db)
     try:
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            HTTPX_TOOL_NAME, HTTPX_VERSION,
+            HTTPX_TOOL_NAME,
+            HTTPX_VERSION,
         )
         if manifest is None:
             raise SandboxDenied(
@@ -274,9 +289,9 @@ def run_httpx(
             argv=argv,
             timeout_seconds=timeout_seconds,
             additional_ports=(),
-            provider_endpoints=(),          # httpx has no external providers
+            provider_endpoints=(),  # httpx has no external providers
             requires_target_connection=True,
-            estimated_requests=1,           # single target, single probe
+            estimated_requests=1,  # single target, single probe
             estimated_output_bytes=5000,
             operation_profile="httpx/inventory",
             profile_params=_profile_params,
@@ -305,7 +320,10 @@ def run_httpx(
         with db_obj.transaction() as conn:
             for obs in findings:
                 ok, _reason = _validate_observation(
-                    obs, target_hostname, port, scheme,
+                    obs,
+                    target_hostname,
+                    port,
+                    scheme,
                 )
                 if not ok:
                     invalid += 1
@@ -362,7 +380,7 @@ def run_httpx(
             skipped_duplicate=duplicates,
             sandbox=sandbox_result,
             execution_status=sandbox_result.execution_status,
-    )
+        )
     finally:
         if owns_db:
             db_obj.close()

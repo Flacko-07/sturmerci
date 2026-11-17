@@ -12,6 +12,7 @@ Threat model:
 - The CA is valid for 24 hours. A stolen CA cert is useless after the
   run because the tool that would trust it no longer exists.
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -68,10 +69,12 @@ class L7CA:
         if self._ca_key is not None:
             raise CAError("CA already generated")
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        subject = x509.Name([
-            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Sentinel Run"),
-            x509.NameAttribute(NameOID.COMMON_NAME, "Sentinel Ephemeral CA"),
-        ])
+        subject = x509.Name(
+            [
+                x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Sentinel Run"),
+                x509.NameAttribute(NameOID.COMMON_NAME, "Sentinel Ephemeral CA"),
+            ]
+        )
         now = datetime.now(timezone.utc)
         cert = (
             x509.CertificateBuilder()
@@ -114,9 +117,7 @@ class L7CA:
             )
         )
         self._ca_key_path.chmod(0o600)
-        self._ca_cert_path.write_bytes(
-            cert.public_bytes(serialization.Encoding.PEM)
-        )
+        self._ca_cert_path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
         self._ca_cert_path.chmod(0o644)
         self._ca_key = key
         self._ca_cert = cert
@@ -139,7 +140,6 @@ class L7CA:
         try:
             ip_obj = ipaddress.ip_address(hostname)
             san_entries: list[x509.GeneralName] = [x509.IPAddress(ip_obj)]
-            is_ip = True
         except ValueError:
             # Wildcard check first: "*.example.com" fails _VALID_HOSTNAME
             # because '*' is not in the character class. Catch it here so
@@ -148,15 +148,15 @@ class L7CA:
             if "*" in hostname:
                 raise CAError(f"wildcard hostnames refused: {hostname!r}")
             if not _VALID_HOSTNAME.match(hostname):
-                raise CAError(
-                    f"invalid hostname for leaf cert: {hostname!r}"
-                )
+                raise CAError(f"invalid hostname for leaf cert: {hostname!r}")
             san_entries = [x509.DNSName(hostname)]
 
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-        subject = x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, hostname),
-        ])
+        subject = x509.Name(
+            [
+                x509.NameAttribute(NameOID.COMMON_NAME, hostname),
+            ]
+        )
         now = datetime.now(timezone.utc)
         cert = (
             x509.CertificateBuilder()
@@ -219,8 +219,7 @@ class L7CA:
             )
         )
         key_path.chmod(0o600)
-        return LeafCert(cert_path=cert_path, key_path=key_path,
-                        common_name=hostname)
+        return LeafCert(cert_path=cert_path, key_path=key_path, common_name=hostname)
 
     def ca_cert_pem(self) -> bytes:
         """Return the CA certificate in PEM form (for SSL_CERT_FILE)."""

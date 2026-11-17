@@ -6,6 +6,7 @@ E-22c: policy hash drift → denied before launch
 E-22d: resolved IP is protected → denied before launch
 plus: manifest/argv/hostname/method denial paths, and the happy path.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -21,8 +22,12 @@ from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.runner import sandbox_runner as _sr
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, SandboxRequest, SandboxResult, run_in_sandbox,
-    _current_scope_lock_hash, _current_egress_profile_id,
+    SandboxDenied,
+    SandboxRequest,
+    SandboxResult,
+    run_in_sandbox,
+    _current_scope_lock_hash,
+    _current_egress_profile_id,
     _current_adapter_code_sha256,
 )
 
@@ -32,8 +37,8 @@ from sentinel.runner.sandbox_runner import (
 TEST_ADAPTER_PATH = (
     Path(__file__).resolve().parent.parent / "fixtures" / "fake_adapter.py"
 )
-from sentinel.storage.db import Database
-from sentinel.tools.manifests import ManifestStore, ToolManifest
+from sentinel.storage.db import Database  # noqa: E402
+from sentinel.tools.manifests import ManifestStore, ToolManifest  # noqa: E402
 
 
 pytestmark = pytest.mark.skipif(
@@ -49,9 +54,17 @@ def _echo_sha() -> str:
     return hashlib.sha256(Path(ECHO_BIN).read_bytes()).hexdigest()
 
 
-def _build_env(tmp_path, *, manifest_providers=(), approved_providers=None,
-               binary_path=None, canonical_hostnames=None,
-               allowed_ports=None, allowed_methods=None, lab_environment: bool = False):
+def _build_env(
+    tmp_path,
+    *,
+    manifest_providers=(),
+    approved_providers=None,
+    binary_path=None,
+    canonical_hostnames=None,
+    allowed_ports=None,
+    allowed_methods=None,
+    lab_environment: bool = False,
+):
     if approved_providers is None:
         approved_providers = list(manifest_providers)
     if binary_path is None:
@@ -65,8 +78,11 @@ def _build_env(tmp_path, *, manifest_providers=(), approved_providers=None,
     db = Database(tmp_path / "sentinel.sqlite3")
     eng_store = EngagementStore(db)
     eng = eng_store.create(
-        platform="lab", program_name="sandbox-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="sandbox-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     eng_store.transition(eng.id, "scope_review", "op")
     eng_store.transition(eng.id, "active", "op")
@@ -75,8 +91,10 @@ def _build_env(tmp_path, *, manifest_providers=(), approved_providers=None,
     target_ids: list[str] = []
     for h in canonical_hostnames:
         cid = asset_store.add_candidate(
-            engagement_id=eng.id, raw_value=h,
-            canonical_value=h, asset_type="hostname",
+            engagement_id=eng.id,
+            raw_value=h,
+            canonical_value=h,
+            asset_type="hostname",
             discovery_source="test",
         )
         aid = asset_store.promote_candidate(cid, approved_by="op")
@@ -84,16 +102,25 @@ def _build_env(tmp_path, *, manifest_providers=(), approved_providers=None,
     target_hash = target_asset_ids_hash(target_ids)
 
     import hashlib as _hashlib
+
     bin_sha = _hashlib.sha256(Path(binary_path).read_bytes()).hexdigest()
     manifest_store = ManifestStore(db)
     m = ToolManifest(
-        tool_name="echo_test", version="1.0.0",
-        executable_path=binary_path, executable_sha256=bin_sha,
-        execution_class=2, network_access=True,
+        tool_name="echo_test",
+        version="1.0.0",
+        executable_path=binary_path,
+        executable_sha256=bin_sha,
+        execution_class=2,
+        network_access=True,
         allowed_profiles=(
-            "test_only", "test/echo", "test/raw", "test/exploit",
-            "test/passthrough", "nmap/tcp_connect_scan",
-        ), prohibited=(),
+            "test_only",
+            "test/echo",
+            "test/raw",
+            "test/exploit",
+            "test/passthrough",
+            "nmap/tcp_connect_scan",
+        ),
+        prohibited=(),
         limits={"max_runtime_seconds": 30},
         output_format="text",
         infrastructure_endpoints=tuple(manifest_providers),
@@ -140,7 +167,8 @@ def _build_env(tmp_path, *, manifest_providers=(), approved_providers=None,
         issued_at_utc=now.isoformat(),
         expires_at_utc=(now + timedelta(hours=1)).isoformat(),
         approved_infrastructure_endpoints=list(approved_providers),
-        lab_environment=lab_environment,    )
+        lab_environment=lab_environment,
+    )
     ApprovalStore(db).issue(appr)
 
     return {
@@ -202,6 +230,7 @@ def _mk_request(**overrides) -> SandboxRequest:
         base["profile_params"] = {"args": list(base["argv"][1:])}
     return SandboxRequest(**base)
 
+
 def _bind_profile(env, profile_id: str) -> None:
     """Update the fixture approval's operation_profile_id.
 
@@ -212,8 +241,7 @@ def _bind_profile(env, profile_id: str) -> None:
     check (argv mismatch, class gate, etc.) fires.
     """
     env["db"].connection.execute(
-        "UPDATE approvals SET operation_profile_id = ? "
-        "WHERE approval_id = ?",
+        "UPDATE approvals SET operation_profile_id = ? WHERE approval_id = ?",
         (profile_id, env["approval_id"]),
     )
     env["db"].commit()
@@ -234,15 +262,20 @@ def _stub_resolver(monkeypatch, mapping=None, ip: str = "1.1.1.1") -> None:
 
 # --- E-22b: approval does not cover the request ---
 
+
 def test_e22b_wrong_port_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
     with pytest.raises(SandboxDenied, match="port"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(port=8443),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
@@ -250,11 +283,15 @@ def test_e22b_wrong_method_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
     with pytest.raises(SandboxDenied, match="method"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(method="POST"),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
@@ -262,15 +299,20 @@ def test_e22b_wrong_protocol_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
     with pytest.raises(SandboxDenied, match="protocol"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(protocol="http"),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
 # --- E-22c: policy hash drift ---
+
 
 def test_e22c_policy_hash_drift_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
@@ -280,46 +322,66 @@ def test_e22c_policy_hash_drift_denied(env, monkeypatch):
             "INSERT INTO policy_snapshots "
             "(id, engagement_id, policy_hash, raw_text_path, created_at_utc) "
             "VALUES (?, ?, ?, ?, ?)",
-            ("ps_1", env["eng_id"], "policy_CHANGED",
-             "/tmp/policy.txt", datetime.now(timezone.utc).isoformat()),
+            (
+                "ps_1",
+                env["eng_id"],
+                "policy_CHANGED",
+                "/tmp/policy.txt",
+                datetime.now(timezone.utc).isoformat(),
+            ),
         )
     with pytest.raises(SandboxDenied, match="policy"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
 # --- E-22d: resolved IP is inside a protected range ---
 
-@pytest.mark.parametrize("bad_ip", ["127.0.0.1", "10.0.0.5",
-                                    "172.17.0.1", "169.254.169.254"])
+
+@pytest.mark.parametrize(
+    "bad_ip", ["127.0.0.1", "10.0.0.5", "172.17.0.1", "169.254.169.254"]
+)
 def test_e22d_protected_ip_denied(env, monkeypatch, bad_ip):
     _stub_resolver(monkeypatch, ip=bad_ip)
     with pytest.raises(SandboxDenied, match="protected"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
 # --- Structural denials (manifest, argv, hostname) ---
 
+
 def test_manifest_not_found_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
     with pytest.raises(SandboxDenied, match="no manifest"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="does_not_exist", adapter_version="0.0.1",
+            adapter_name="does_not_exist",
+            adapter_version="0.0.1",
             request=_mk_request(),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
@@ -328,11 +390,15 @@ def test_argv0_mismatch_denied(env, monkeypatch):
     _bind_profile(env, "test/raw")
     with pytest.raises(SandboxDenied, match="argv\\[0\\]"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(argv=["/bin/true", "x"]),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
@@ -340,25 +406,34 @@ def test_hostname_not_approved_denied(env, monkeypatch):
     _stub_resolver(monkeypatch)
     with pytest.raises(SandboxDenied, match="not in approved_assets"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(hostname="other.test"),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
 # --- Happy path: echo actually runs inside the namespace ---
 
+
 def test_happy_path_echo_runs_in_sandbox(env, monkeypatch):
     _stub_resolver(monkeypatch, ip="1.1.1.1")
     _bind_profile(env, "test/raw")
     result = run_in_sandbox(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         approval_id=env["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(argv=[ECHO_BIN, "hello-from-sandbox"]),
-        engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+        engagements_root=env["engagements_root"],
+        adapter_code_path=TEST_ADAPTER_PATH,
+        actor="op",
     )
     assert isinstance(result, SandboxResult)
     assert result.exit_code == 0, f"stderr: {result.stderr}"
@@ -368,10 +443,14 @@ def test_happy_path_echo_runs_in_sandbox(env, monkeypatch):
     assert result.audit_event_seq is not None
 
     # Audit event written
-    row = env["db"].connection.execute(
-        "SELECT event_type, decision, details_json FROM audit_events "
-        "WHERE event_type = 'sandbox_ok'"
-    ).fetchone()
+    row = (
+        env["db"]
+        .connection.execute(
+            "SELECT event_type, decision, details_json FROM audit_events "
+            "WHERE event_type = 'sandbox_ok'"
+        )
+        .fetchone()
+    )
     assert row is not None
     # M6.1.1a: audit decision for sandbox_ok is now "completed",
     # matching the fail-closed classification scheme.
@@ -380,6 +459,7 @@ def test_happy_path_echo_runs_in_sandbox(env, monkeypatch):
 
 
 # --- Meta: subprocess.run must not be called on a denied request ---
+
 
 def test_denied_request_never_launches_subprocess(env, monkeypatch):
     """E-22 meta: no subprocess.run call for any pre-launch denial.
@@ -392,6 +472,7 @@ def test_denied_request_never_launches_subprocess(env, monkeypatch):
     launched: list[list[str]] = []
 
     real_run = subprocess.run
+
     def recording_run(args, *a, **kw):
         # Only interested in attempts to launch the echo binary (via
         # ip netns exec); allow other subprocess calls (nft, ip, etc.)
@@ -409,34 +490,42 @@ def test_denied_request_never_launches_subprocess(env, monkeypatch):
     # Wrong port → denied before launch
     with pytest.raises(SandboxDenied):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(port=8443),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
-    assert launched == [], (
-        f"denied request spawned subprocess: {launched}"
-    )
+    assert launched == [], f"denied request spawned subprocess: {launched}"
 
 
 # --- E-25: provider authorization ---
 
+
 def test_e25_provider_approved_runs(env_with_providers, monkeypatch):
     """Provider in approval + manifest + request -> runs, used_providers set."""
-    _stub_resolver(monkeypatch, mapping={
-        "probe.test": ["1.1.1.1"],
-        "crt.sh": ["104.21.16.1"],
-    })
+    _stub_resolver(
+        monkeypatch,
+        mapping={
+            "probe.test": ["1.1.1.1"],
+            "crt.sh": ["104.21.16.1"],
+        },
+    )
     result = run_in_sandbox(
         db=env_with_providers["db"],
         engagement_id=env_with_providers["eng_id"],
         approval_id=env_with_providers["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(provider_endpoints=("crt.sh",)),
         engagements_root=env_with_providers["engagements_root"],
-        adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+        adapter_code_path=TEST_ADAPTER_PATH,
+        actor="op",
     )
     assert result.used_providers == ("crt.sh",)
     assert result.exit_code == 0
@@ -444,17 +533,24 @@ def test_e25_provider_approved_runs(env_with_providers, monkeypatch):
 
 def test_e25_provider_not_approved_denied(env, monkeypatch):
     """Approval has no providers; request asks for crt.sh -> denied."""
-    _stub_resolver(monkeypatch, mapping={
-        "probe.test": ["1.1.1.1"],
-        "crt.sh": ["104.21.16.1"],
-    })
+    _stub_resolver(
+        monkeypatch,
+        mapping={
+            "probe.test": ["1.1.1.1"],
+            "crt.sh": ["104.21.16.1"],
+        },
+    )
     with pytest.raises(SandboxDenied, match="not authorized"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(provider_endpoints=("crt.sh",)),
-            engagements_root=env["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            engagements_root=env["engagements_root"],
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
@@ -463,23 +559,29 @@ def test_e25_provider_not_in_manifest_denied(tmp_path, monkeypatch):
 
     Simulates the invariant that approval.providers ⊆ manifest.providers.
     """
-    _stub_resolver(monkeypatch, mapping={
-        "probe.test": ["1.1.1.1"],
-        "crt.sh": ["104.21.16.1"],
-    })
+    _stub_resolver(
+        monkeypatch,
+        mapping={
+            "probe.test": ["1.1.1.1"],
+            "crt.sh": ["104.21.16.1"],
+        },
+    )
     # Manifest: no providers declared; approval: crt.sh authorized.
     # This is the "approval over-reaches manifest" case that
     # _validate_provider_nesting catches.
-    d = _build_env(tmp_path, manifest_providers=(),
-                   approved_providers=["crt.sh"])
+    d = _build_env(tmp_path, manifest_providers=(), approved_providers=["crt.sh"])
     try:
         with pytest.raises(SandboxDenied, match="not declared by manifest"):
             run_in_sandbox(
-                db=d["db"], engagement_id=d["eng_id"],
+                db=d["db"],
+                engagement_id=d["eng_id"],
                 approval_id=d["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(provider_endpoints=("crt.sh",)),
-                engagements_root=d["engagements_root"], adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+                engagements_root=d["engagements_root"],
+                adapter_code_path=TEST_ADAPTER_PATH,
+                actor="op",
             )
     finally:
         d["db"].close()
@@ -487,42 +589,56 @@ def test_e25_provider_not_in_manifest_denied(tmp_path, monkeypatch):
 
 def test_e25_provider_ip_protected_denied(env_with_providers, monkeypatch):
     """Provider resolves to a protected IP (e.g. RFC1918) -> denied."""
-    _stub_resolver(monkeypatch, mapping={
-        "probe.test": ["1.1.1.1"],
-        "crt.sh": ["10.0.0.5"],  # protected
-    })
+    _stub_resolver(
+        monkeypatch,
+        mapping={
+            "probe.test": ["1.1.1.1"],
+            "crt.sh": ["10.0.0.5"],  # protected
+        },
+    )
     with pytest.raises(SandboxDenied, match="protected"):
         run_in_sandbox(
             db=env_with_providers["db"],
             engagement_id=env_with_providers["eng_id"],
             approval_id=env_with_providers["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(provider_endpoints=("crt.sh",)),
             engagements_root=env_with_providers["engagements_root"],
-            adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+            adapter_code_path=TEST_ADAPTER_PATH,
+            actor="op",
         )
 
 
 def test_e25_provider_audit_written(env_with_providers, monkeypatch):
     """Every provider contact writes a sandbox_provider_contact audit event
     with provider, target hostname, target IP, and approval id."""
-    _stub_resolver(monkeypatch, mapping={
-        "probe.test": ["1.1.1.1"],
-        "crt.sh": ["104.21.16.1"],
-    })
+    _stub_resolver(
+        monkeypatch,
+        mapping={
+            "probe.test": ["1.1.1.1"],
+            "crt.sh": ["104.21.16.1"],
+        },
+    )
     run_in_sandbox(
         db=env_with_providers["db"],
         engagement_id=env_with_providers["eng_id"],
         approval_id=env_with_providers["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(provider_endpoints=("crt.sh",)),
         engagements_root=env_with_providers["engagements_root"],
-        adapter_code_path=TEST_ADAPTER_PATH, actor="op",
+        adapter_code_path=TEST_ADAPTER_PATH,
+        actor="op",
     )
-    row = env_with_providers["db"].connection.execute(
-        "SELECT details_json FROM audit_events "
-        "WHERE event_type = 'sandbox_provider_contact'"
-    ).fetchone()
+    row = (
+        env_with_providers["db"]
+        .connection.execute(
+            "SELECT details_json FROM audit_events "
+            "WHERE event_type = 'sandbox_provider_contact'"
+        )
+        .fetchone()
+    )
     assert row is not None, "provider contact audit not written"
     details = row["details_json"]
     assert "crt.sh" in details
@@ -532,6 +648,7 @@ def test_e25_provider_audit_written(env_with_providers, monkeypatch):
 
 
 # --- P1.8: revocation watchdog ---
+
 
 def test_p18_revocation_mid_execution_stops_run(tmp_path, monkeypatch):
     """E-26: revoking approval while a scanner is running kills it.
@@ -570,13 +687,16 @@ def test_p18_revocation_mid_execution_stops_run(tmp_path, monkeypatch):
         result_holder["ready"].set()
         try:
             result_holder["result"] = run_in_sandbox(
-                db=env["db"], engagement_id=env["eng_id"],
+                db=env["db"],
+                engagement_id=env["eng_id"],
                 approval_id=env["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(
                     argv=["/bin/sleep", "30"],
                     timeout_seconds=60,
-                 _passthrough=True,),
+                    _passthrough=True,
+                ),
                 adapter_code_path=TEST_ADAPTER_PATH,
                 engagements_root=env["engagements_root"],
                 actor="op",
@@ -590,9 +710,7 @@ def test_p18_revocation_mid_execution_stops_run(tmp_path, monkeypatch):
     worker.start()
 
     # Wait for env to be built
-    assert result_holder["ready"].wait(timeout=10.0), (
-        "worker did not finish env setup"
-    )
+    assert result_holder["ready"].wait(timeout=10.0), "worker did not finish env setup"
 
     # Give the sandbox time to actually spawn the sleeper
     _time.sleep(2.0)
@@ -634,28 +752,35 @@ def test_p18_revocation_mid_execution_stops_run(tmp_path, monkeypatch):
 
 # --- P1.7: aggregate budget enforcement ---
 
+
 def test_p17_budget_exhausted_denied(env, monkeypatch):
     """E-27: once request budget is exhausted, subsequent runs are denied."""
     _stub_resolver(monkeypatch, ip="1.1.1.1")
 
     # Burn the entire request budget on one legal call
     run_in_sandbox(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         approval_id=env["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(estimated_requests=100),  # budget is 100
         adapter_code_path=TEST_ADAPTER_PATH,
-        engagements_root=env["engagements_root"], actor="op",
+        engagements_root=env["engagements_root"],
+        actor="op",
     )
     # Any further request exceeds the ceiling
     with pytest.raises(SandboxDenied, match="request budget exhausted"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(estimated_requests=1),
             adapter_code_path=TEST_ADAPTER_PATH,
-            engagements_root=env["engagements_root"], actor="op",
+            engagements_root=env["engagements_root"],
+            actor="op",
         )
 
 
@@ -663,20 +788,27 @@ def test_p17_budget_recorded_after_run(env, monkeypatch):
     """E-27: usage table accumulates requests, bytes, runtime."""
     _stub_resolver(monkeypatch, ip="1.1.1.1")
     run_in_sandbox(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         approval_id=env["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(estimated_requests=5),
         adapter_code_path=TEST_ADAPTER_PATH,
-        engagements_root=env["engagements_root"], actor="op",
+        engagements_root=env["engagements_root"],
+        actor="op",
     )
     # M6-03/M6-04: renamed columns. Old requests_used/bytes_used are
     # deprecated (always 0). New columns carry the real values.
-    row = env["db"].connection.execute(
-        "SELECT output_bytes_used, estimated_network_probes, "
-        "runtime_used_seconds FROM approval_usage WHERE approval_id = ?",
-        (env["approval_id"],),
-    ).fetchone()
+    row = (
+        env["db"]
+        .connection.execute(
+            "SELECT output_bytes_used, estimated_network_probes, "
+            "runtime_used_seconds FROM approval_usage WHERE approval_id = ?",
+            (env["approval_id"],),
+        )
+        .fetchone()
+    )
     assert row is not None
     assert row["estimated_network_probes"] == 5
     assert row["output_bytes_used"] > 0
@@ -685,26 +817,32 @@ def test_p17_budget_recorded_after_run(env, monkeypatch):
 
 # --- M7.1: path-profile refusal ---
 
+
 def test_m71_path_restricted_approval_refused(env, monkeypatch):
     """M7.1: approval.allowed_path_profile != 'default' -> denied before spawn."""
     _stub_resolver(monkeypatch)
     with env["db"].transaction() as conn:
         conn.execute(
             "UPDATE approvals SET allowed_path_profile = '/api/v1' "
-            "WHERE approval_id = ?", (env["approval_id"],),
+            "WHERE approval_id = ?",
+            (env["approval_id"],),
         )
     with pytest.raises(SandboxDenied, match="path-restricted"):
         run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(),
             adapter_code_path=TEST_ADAPTER_PATH,
-            engagements_root=env["engagements_root"], actor="op",
+            engagements_root=env["engagements_root"],
+            actor="op",
         )
 
 
 # --- M7.2b.2: use_tls_proxy plumbing ---
+
 
 def test_m72b_proxy_starts_and_sets_env(tmp_path, monkeypatch):
     """E-28: use_tls_proxy=True spawns proxy, sets env vars, tears down."""
@@ -713,16 +851,20 @@ def test_m72b_proxy_starts_and_sets_env(tmp_path, monkeypatch):
     _bind_profile(env, "test/passthrough")
     try:
         result = run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(
                 argv=["/usr/bin/env"],
                 use_tls_proxy=True,
                 timeout_seconds=20,
-             _passthrough=True,),
+                _passthrough=True,
+            ),
             adapter_code_path=TEST_ADAPTER_PATH,
-            engagements_root=env["engagements_root"], actor="op",
+            engagements_root=env["engagements_root"],
+            actor="op",
         )
         # SandboxResult reports proxy port + CA path (informational only;
         # the CA is ephemeral and the dir is cleaned up post-run).
@@ -741,29 +883,36 @@ def test_m72b_proxy_starts_and_sets_env(tmp_path, monkeypatch):
         assert "REQUESTS_CA_BUNDLE=" in result.stdout
 
         proxy_url_in_env = [
-            line for line in result.stdout.splitlines()
+            line
+            for line in result.stdout.splitlines()
             if line.startswith("HTTPS_PROXY=")
         ][0]
         assert str(result.proxy_port) in proxy_url_in_env
         assert "10.99.0.1" in proxy_url_in_env
 
         ca_path_in_env = [
-            line for line in result.stdout.splitlines()
+            line
+            for line in result.stdout.splitlines()
             if line.startswith("SSL_CERT_FILE=")
         ][0]
         assert str(result.proxy_ca_path) in ca_path_in_env
 
         # Proxy audit events written
-        events = env["db"].connection.execute(
-            "SELECT event_type FROM audit_events "
-            "WHERE event_type IN ('sandbox_proxy_started', 'sandbox_proxy_stopped')"
-        ).fetchall()
+        events = (
+            env["db"]
+            .connection.execute(
+                "SELECT event_type FROM audit_events "
+                "WHERE event_type IN ('sandbox_proxy_started', 'sandbox_proxy_stopped')"
+            )
+            .fetchall()
+        )
         assert len(events) >= 2
     finally:
         env["db"].close()
 
 
 # --- M7.2b.2b: end-to-end curl through the proxy ---
+
 
 @pytest.fixture
 def fixture_https_server(tmp_path):
@@ -837,7 +986,8 @@ def test_m72b_curl_through_proxy_succeeds(tmp_path, monkeypatch, fixture_https_s
 
     env = _build_env(
         tmp_path,
-        binary_path="/usr/bin/curl", lab_environment=True,
+        binary_path="/usr/bin/curl",
+        lab_environment=True,
         canonical_hostnames=["127.0.0.1"],
         allowed_ports=[upstream_port],
         allowed_methods=["GET"],
@@ -845,9 +995,11 @@ def test_m72b_curl_through_proxy_succeeds(tmp_path, monkeypatch, fixture_https_s
     _bind_profile(env, "test/passthrough")
     try:
         result = run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(
                 hostname="127.0.0.1",
                 port=upstream_port,
@@ -865,7 +1017,8 @@ def test_m72b_curl_through_proxy_succeeds(tmp_path, monkeypatch, fixture_https_s
                 _passthrough=True,
             ),
             adapter_code_path=TEST_ADAPTER_PATH,
-            engagements_root=env["engagements_root"], actor="op",
+            engagements_root=env["engagements_root"],
+            actor="op",
         )
         assert result.exit_code == 0, (
             f"curl failed: stdout={result.stdout!r} stderr={result.stderr!r}"
@@ -879,7 +1032,9 @@ def test_m72b_curl_through_proxy_succeeds(tmp_path, monkeypatch, fixture_https_s
         env["db"].close()
 
 
-def test_m72b_proxy_denies_disallowed_method(tmp_path, monkeypatch, fixture_https_server):
+def test_m72b_proxy_denies_disallowed_method(
+    tmp_path, monkeypatch, fixture_https_server
+):
     """E-30: curl -X POST is denied by the proxy filter (403), upstream
     sees zero requests (fixture has no POST counter but the response body
     would carry 'fixture-response-body' if it passed).
@@ -892,7 +1047,8 @@ def test_m72b_proxy_denies_disallowed_method(tmp_path, monkeypatch, fixture_http
 
     env = _build_env(
         tmp_path,
-        binary_path="/usr/bin/curl", lab_environment=True,
+        binary_path="/usr/bin/curl",
+        lab_environment=True,
         canonical_hostnames=["127.0.0.1"],
         allowed_ports=[upstream_port],
         allowed_methods=["GET"],  # POST not in allowed set
@@ -900,9 +1056,11 @@ def test_m72b_proxy_denies_disallowed_method(tmp_path, monkeypatch, fixture_http
     _bind_profile(env, "test/passthrough")
     try:
         result = run_in_sandbox(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            adapter_name="echo_test", adapter_version="1.0.0",
+            adapter_name="echo_test",
+            adapter_version="1.0.0",
             request=_mk_request(
                 hostname="127.0.0.1",
                 port=upstream_port,
@@ -915,8 +1073,11 @@ def test_m72b_proxy_denies_disallowed_method(tmp_path, monkeypatch, fixture_http
                 path="/",
                 argv=[
                     "/usr/bin/curl",
-                    "-sS", "-X", "POST",
-                    "-w", "\nHTTP_STATUS:%{http_code}",
+                    "-sS",
+                    "-X",
+                    "POST",
+                    "-w",
+                    "\nHTTP_STATUS:%{http_code}",
                     f"https://127.0.0.1:{upstream_port}/",
                 ],
                 use_tls_proxy=True,
@@ -925,7 +1086,8 @@ def test_m72b_proxy_denies_disallowed_method(tmp_path, monkeypatch, fixture_http
                 _passthrough=True,
             ),
             adapter_code_path=TEST_ADAPTER_PATH,
-            engagements_root=env["engagements_root"], actor="op",
+            engagements_root=env["engagements_root"],
+            actor="op",
         )
         # The proxy denies with 403. curl still exits 0 because it
         # received a valid HTTP response. The body contains the denial.
@@ -958,18 +1120,22 @@ def test_m72c_restricted_profile_requires_proxy(tmp_path, monkeypatch):
             )
         with pytest.raises(SandboxDenied, match="requires use_tls_proxy"):
             run_in_sandbox(
-                db=env["db"], engagement_id=env["eng_id"],
+                db=env["db"],
+                engagement_id=env["eng_id"],
                 approval_id=env["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(use_tls_proxy=False),
                 adapter_code_path=TEST_ADAPTER_PATH,
-                engagements_root=env["engagements_root"], actor="op",
+                engagements_root=env["engagements_root"],
+                actor="op",
             )
     finally:
         env["db"].close()
 
 
 # --- M6-P0-A: operation profile enforcement ---
+
 
 def test_m6p0a_argv_mismatch_rejected(tmp_path, monkeypatch):
     """A caller sending argv that differs from the profile builder's
@@ -984,9 +1150,11 @@ def test_m6p0a_argv_mismatch_rejected(tmp_path, monkeypatch):
         # tests the profile-vs-argv check fires.
         with pytest.raises(SandboxDenied, match="profile"):
             run_in_sandbox(
-                db=env["db"], engagement_id=env["eng_id"],
+                db=env["db"],
+                engagement_id=env["eng_id"],
                 approval_id=env["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(
                     argv=["/bin/echo", "hello"],
                     operation_profile="nmap/tcp_connect_scan",
@@ -997,7 +1165,8 @@ def test_m6p0a_argv_mismatch_rejected(tmp_path, monkeypatch):
                     },
                 ),
                 adapter_code_path=TEST_ADAPTER_PATH,
-                engagements_root=env["engagements_root"], actor="op",
+                engagements_root=env["engagements_root"],
+                actor="op",
             )
     finally:
         env["db"].close()
@@ -1010,22 +1179,26 @@ def test_m6p0a_unknown_profile_rejected(tmp_path, monkeypatch):
         _bind_profile(env, "totally/fake")
         with pytest.raises(SandboxDenied, match="profile"):
             run_in_sandbox(
-                db=env["db"], engagement_id=env["eng_id"],
+                db=env["db"],
+                engagement_id=env["eng_id"],
                 approval_id=env["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(
                     argv=["/bin/echo", "hello"],
                     operation_profile="totally/fake",
                     profile_params={},
                 ),
                 adapter_code_path=TEST_ADAPTER_PATH,
-                engagements_root=env["engagements_root"], actor="op",
+                engagements_root=env["engagements_root"],
+                actor="op",
             )
     finally:
         env["db"].close()
 
 
 # --- M6-01: capability verification ---
+
 
 def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
     """The scanner process must run as nobody with empty capability sets.
@@ -1054,16 +1227,21 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
             # the process is guaranteed to be alive when we read /proc.
             def _do():
                 run_in_sandbox(
-                    db=env["db"], engagement_id=env["eng_id"],
+                    db=env["db"],
+                    engagement_id=env["eng_id"],
                     approval_id=env["approval_id"],
-                    adapter_name="echo_test", adapter_version="1.0.0",
+                    adapter_name="echo_test",
+                    adapter_version="1.0.0",
                     request=_mk_request(
                         argv=["/bin/sleep", "3"],
                         timeout_seconds=10,
-                     _passthrough=True,),
+                        _passthrough=True,
+                    ),
                     adapter_code_path=TEST_ADAPTER_PATH,
-                    engagements_root=env["engagements_root"], actor="op",
+                    engagements_root=env["engagements_root"],
+                    actor="op",
                 )
+
             _do()
         except Exception as e:
             result_holder["exc"] = e
@@ -1073,6 +1251,7 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
     # Simpler: spawn a synthetic run_in_sandbox in a thread, poll for any
     # PID owned by nobody via psutil, read its status.
     import psutil
+
     worker = _threading.Thread(target=_run, daemon=True)
     worker.start()
 
@@ -1082,9 +1261,11 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
     while _time.monotonic() < deadline:
         for p in psutil.process_iter(["pid", "username", "cmdline"]):
             try:
-                if p.info["username"] == "nobody" and \
-                   p.info["cmdline"] and \
-                   "sleep" in " ".join(p.info["cmdline"]):
+                if (
+                    p.info["username"] == "nobody"
+                    and p.info["cmdline"]
+                    and "sleep" in " ".join(p.info["cmdline"])
+                ):
                     target_pid = p.info["pid"]
                     break
             except (psutil.NoSuchProcess, psutil.AccessDenied):
@@ -1093,9 +1274,7 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
             break
         _time.sleep(0.1)
 
-    assert target_pid is not None, (
-        "no nobody-owned sleep process appeared within 8s"
-    )
+    assert target_pid is not None, "no nobody-owned sleep process appeared within 8s"
 
     # Read /proc/<pid>/status
     status_path = f"/proc/{target_pid}/status"
@@ -1103,7 +1282,7 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
         status_text = f.read()
 
     # Parse Uid line: "Uid: <real> <effective> <saved> <fs>"
-    uid_line = [l for l in status_text.splitlines() if l.startswith("Uid:")][0]
+    uid_line = [line for line in status_text.splitlines() if line.startswith("Uid:")][0]
     uids = [int(x) for x in uid_line.split()[1:]]
     assert uids == [65534, 65534, 65534, 65534], (
         f"expected all UIDs=65534 (nobody), got {uids}"
@@ -1116,18 +1295,18 @@ def test_m6p01_scanner_runs_with_no_capabilities(tmp_path, monkeypatch):
     # subsequent execs), so CapEff/CapPrm/CapAmb being 0 is the
     # security-relevant assertion.
     for cap_name in ("CapInh", "CapPrm", "CapEff", "CapAmb"):
-        cap_line = [l for l in status_text.splitlines()
-                    if l.startswith(f"{cap_name}:")][0]
+        cap_line = [
+            line for line in status_text.splitlines() if line.startswith(f"{cap_name}:")
+        ][0]
         cap_hex = cap_line.split()[1]
         cap_val = int(cap_hex, 16)
-        assert cap_val == 0, (
-            f"{cap_name} must be 0, got {cap_hex} ({cap_val})"
-        )
+        assert cap_val == 0, f"{cap_name} must be 0, got {cap_hex} ({cap_val})"
 
     worker.join(timeout=15)
 
 
 # --- M6-02: watchdog fails closed on DB error ---
+
 
 def test_m6p02_watchdog_db_error_fails_closed(tmp_path, monkeypatch):
     """If the watchdog cannot read approval state, it must kill the run.
@@ -1145,8 +1324,11 @@ def test_m6p02_watchdog_db_error_fails_closed(tmp_path, monkeypatch):
     _stub_resolver(monkeypatch)
 
     result_holder: dict = {
-        "exc": None, "result": None, "db_path": None,
-        "approval_id": None, "eng_id": None,
+        "exc": None,
+        "result": None,
+        "db_path": None,
+        "approval_id": None,
+        "eng_id": None,
         "traceback": None,
         "ready": _threading.Event(),
     }
@@ -1160,19 +1342,24 @@ def test_m6p02_watchdog_db_error_fails_closed(tmp_path, monkeypatch):
         result_holder["ready"].set()
         try:
             result_holder["result"] = run_in_sandbox(
-                db=env["db"], engagement_id=env["eng_id"],
+                db=env["db"],
+                engagement_id=env["eng_id"],
                 approval_id=env["approval_id"],
-                adapter_name="echo_test", adapter_version="1.0.0",
+                adapter_name="echo_test",
+                adapter_version="1.0.0",
                 request=_mk_request(
                     argv=["/bin/sleep", "30"],
                     timeout_seconds=60,
-                 _passthrough=True,),
+                    _passthrough=True,
+                ),
                 adapter_code_path=TEST_ADAPTER_PATH,
-                engagements_root=env["engagements_root"], actor="op",
+                engagements_root=env["engagements_root"],
+                actor="op",
             )
         except Exception as e:
             result_holder["exc"] = e
             import traceback as _traceback
+
             result_holder["traceback"] = _traceback.format_exc()
         finally:
             env["db"].close()
@@ -1189,9 +1376,11 @@ def test_m6p02_watchdog_db_error_fails_closed(tmp_path, monkeypatch):
     while _time.monotonic() < deadline:
         for process in _psutil.process_iter(["username", "cmdline"]):
             try:
-                if (process.info["username"] == "nobody"
-                        and process.info["cmdline"]
-                        and "sleep" in " ".join(process.info["cmdline"])):
+                if (
+                    process.info["username"] == "nobody"
+                    and process.info["cmdline"]
+                    and "sleep" in " ".join(process.info["cmdline"])
+                ):
                     child_found = True
                     break
             except (_psutil.NoSuchProcess, _psutil.AccessDenied):
@@ -1223,6 +1412,7 @@ def test_m6p02_watchdog_db_error_fails_closed(tmp_path, monkeypatch):
 
 # --- M6-06: subprocess output cap ---
 
+
 def test_m6p06_capped_communicate_truncates():
     """_capped_communicate truncates at max_bytes per stream."""
     import subprocess as _sp
@@ -1230,9 +1420,13 @@ def test_m6p06_capped_communicate_truncates():
 
     proc = _sp.Popen(
         ["/usr/bin/seq", "1", "100000"],
-        stdout=_sp.PIPE, stderr=_sp.PIPE, text=False,
+        stdout=_sp.PIPE,
+        stderr=_sp.PIPE,
+        text=False,
     )
-    out, err, out_trunc, err_trunc = _capped_communicate(proc, timeout_s=10.0, max_bytes=1000)
+    out, err, out_trunc, err_trunc = _capped_communicate(
+        proc, timeout_s=10.0, max_bytes=1000
+    )
     assert len(out) == 1000, f"expected 1000 bytes, got {len(out)}"
     assert out_trunc is True, "truncation flag must be True when cap is hit"
     assert err_trunc is False
@@ -1254,24 +1448,32 @@ def test_m6p06_capped_communicate_rejects_zero():
 
 # --- M6-03/M6-04: budget columns ---
 
+
 def test_m6p03_p06_budget_uses_new_columns(env, monkeypatch):
     """After a run, output_bytes_used and estimated_network_probes are
     populated; deprecated columns are not written."""
     _stub_resolver(monkeypatch, ip="1.1.1.1")
     run_in_sandbox(
-        db=env["db"], engagement_id=env["eng_id"],
+        db=env["db"],
+        engagement_id=env["eng_id"],
         approval_id=env["approval_id"],
-        adapter_name="echo_test", adapter_version="1.0.0",
+        adapter_name="echo_test",
+        adapter_version="1.0.0",
         request=_mk_request(estimated_requests=5),
         adapter_code_path=TEST_ADAPTER_PATH,
-        engagements_root=env["engagements_root"], actor="op",
+        engagements_root=env["engagements_root"],
+        actor="op",
     )
-    row = env["db"].connection.execute(
-        "SELECT output_bytes_used, estimated_network_probes, "
-        "bytes_used, requests_used FROM approval_usage "
-        "WHERE approval_id = ?",
-        (env["approval_id"],),
-    ).fetchone()
+    row = (
+        env["db"]
+        .connection.execute(
+            "SELECT output_bytes_used, estimated_network_probes, "
+            "bytes_used, requests_used FROM approval_usage "
+            "WHERE approval_id = ?",
+            (env["approval_id"],),
+        )
+        .fetchone()
+    )
     assert row is not None
     assert row["output_bytes_used"] > 0
     assert row["estimated_network_probes"] == 5

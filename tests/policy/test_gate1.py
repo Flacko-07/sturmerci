@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 1: URL canonicalization + wildcard scope matching."""
+
 import pytest
 
 from sentinel.scope.canonicalizer import (
@@ -65,13 +66,16 @@ def test_control_chars_rejected():
         canonicalize_url("https://app.example.test/\x00")
 
 
-@pytest.mark.parametrize("raw", [
-    "ftp://app.example.test/",
-    "file:///etc/passwd",
-    "javascript:alert(1)",
-    "data:text/html,x",
-    "gopher://app.example.test/",
-])
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "ftp://app.example.test/",
+        "file:///etc/passwd",
+        "javascript:alert(1)",
+        "data:text/html,x",
+        "gopher://app.example.test/",
+    ],
+)
 def test_unsupported_schemes_rejected(raw):
     with pytest.raises(CanonicalizationError):
         canonicalize_url(raw)

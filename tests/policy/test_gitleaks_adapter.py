@@ -6,6 +6,7 @@ must register the manifest into its own tmp_path DB before invoking
 the adapter. This mirrors the real application flow: manifest
 registration happens once per DB, not once per process.
 """
+
 import hashlib
 import os
 from pathlib import Path
@@ -15,7 +16,9 @@ import pytest
 from sentinel.storage.db import Database
 from sentinel.engagement.store import EngagementStore
 from sentinel.adapters.gitleaks import (
-    run_gitleaks, AdapterError, GitleaksRunResult,
+    run_gitleaks,
+    AdapterError,
+    GitleaksRunResult,
 )
 from sentinel.tools.manifests import ManifestStore, ToolManifest
 
@@ -49,17 +52,34 @@ def _write_synthetic_gitleaks_fixture(source_dir: Path) -> None:
     source_dir.mkdir(parents=True, exist_ok=True)
     aws_key = "AK" + "IA" + "Z7Q2M9R4T6V8X3W5"
     github_token = "gh" + "p_" + ("B4n8Q2x6" * 5)
-    jwt = ("eyJhbGciOi" + "JIUzI1NiJ9" + "." +
-           "eyJzdWIiOi" + "J0ZXN0In0" + "." + "synthetic_signature_123456")
+    jwt = (
+        "eyJhbGciOi"
+        + "JIUzI1NiJ9"
+        + "."
+        + "eyJzdWIiOi"
+        + "J0ZXN0In0"
+        + "."
+        + "synthetic_signature_123456"
+    )
     key_begin = "-----BEGIN " + "RSA " + "PRIVATE KEY-----"
     key_end = "-----END " + "RSA " + "PRIVATE KEY-----"
-    key_body = ("MIIEowIBAAKCAQEA" + "Z" * 48 + "\n" +
-                "Q2Z7V4x9A6b3C8d1" * 4)
+    key_body = "MIIEowIBAAKCAQEA" + "Z" * 48 + "\n" + "Q2Z7V4x9A6b3C8d1" * 4
     content = (
-        "AWS_ACCESS_KEY_ID=" + aws_key + "\n" +
-        "GITHUB_TOKEN=" + github_token + "\n" +
-        "JWT=" + jwt + "\n" +
-        key_begin + "\n" + key_body + "\n" + key_end + "\n"
+        "AWS_ACCESS_KEY_ID="
+        + aws_key
+        + "\n"
+        + "GITHUB_TOKEN="
+        + github_token
+        + "\n"
+        + "JWT="
+        + jwt
+        + "\n"
+        + key_begin
+        + "\n"
+        + key_body
+        + "\n"
+        + key_end
+        + "\n"
     )
     (source_dir / "synthetic_credentials.py").write_text(content, encoding="utf-8")
 
@@ -69,8 +89,11 @@ def active_eng(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="gitleaks-fixture", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="gitleaks-fixture",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
@@ -97,8 +120,11 @@ def test_gitleaks_manifest_is_class0_no_network(active_eng):
 def test_happy_path(active_eng):
     db, eng_id, root = active_eng
     result = run_gitleaks(
-        db, engagement_id=eng_id, engagements_root=root,
-        scan_subdir="source", actor="op",
+        db,
+        engagement_id=eng_id,
+        engagements_root=root,
+        scan_subdir="source",
+        actor="op",
     )
     assert isinstance(result, GitleaksRunResult)
     assert result.findings_count >= 3
@@ -111,8 +137,11 @@ def test_happy_path(active_eng):
 def test_audit_event_written(active_eng):
     db, eng_id, root = active_eng
     result = run_gitleaks(
-        db, engagement_id=eng_id, engagements_root=root,
-        scan_subdir="source", actor="op",
+        db,
+        engagement_id=eng_id,
+        engagements_root=root,
+        scan_subdir="source",
+        actor="op",
     )
     row = db.connection.execute(
         "SELECT details_json FROM audit_events WHERE event_type = 'gitleaks_run'"
@@ -124,8 +153,11 @@ def test_audit_event_written(active_eng):
 def test_evidence_redaction_status_is_held_or_redacted(active_eng):
     db, eng_id, root = active_eng
     r = run_gitleaks(
-        db, engagement_id=eng_id, engagements_root=root,
-        scan_subdir="source", actor="op",
+        db,
+        engagement_id=eng_id,
+        engagements_root=root,
+        scan_subdir="source",
+        actor="op",
     )
     assert r.evidence.redaction_status in ("clean", "redacted", "held_for_review")
 
@@ -134,13 +166,19 @@ def test_refuses_when_engagement_not_active(tmp_path):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="x", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="x",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     with pytest.raises(AdapterError, match="must be 'active'"):
         run_gitleaks(
-            db, engagement_id=eng.id, engagements_root=tmp_path / "engagements",
-            scan_subdir="source", actor="op",
+            db,
+            engagement_id=eng.id,
+            engagements_root=tmp_path / "engagements",
+            scan_subdir="source",
+            actor="op",
         )
     db.close()
 
@@ -149,8 +187,11 @@ def test_refuses_on_missing_source(active_eng):
     db, eng_id, root = active_eng
     with pytest.raises(AdapterError, match="source does not exist"):
         run_gitleaks(
-            db, engagement_id=eng_id, engagements_root=root,
-            scan_subdir="does_not_exist", actor="op",
+            db,
+            engagement_id=eng_id,
+            engagements_root=root,
+            scan_subdir="does_not_exist",
+            actor="op",
         )
 
 
@@ -169,19 +210,27 @@ def test_refuses_on_manifest_drift(active_eng):
         )
     with pytest.raises(AdapterError, match="manifest DB drift"):
         run_gitleaks(
-            db, engagement_id=eng_id, engagements_root=root,
-            scan_subdir="source", actor="op",
+            db,
+            engagement_id=eng_id,
+            engagements_root=root,
+            scan_subdir="source",
+            actor="op",
         )
 
+
 # --- Path containment (Gitleaks adapter preconditions, step 7) ---
+
 
 def test_refuses_on_traversal(active_eng):
     """../other_engagement must be rejected as escaping the engagement dir."""
     db, eng_id, root = active_eng
     with pytest.raises(AdapterError, match="escapes engagement"):
         run_gitleaks(
-            db, engagement_id=eng_id, engagements_root=root,
-            scan_subdir="../other_engagement", actor="op",
+            db,
+            engagement_id=eng_id,
+            engagements_root=root,
+            scan_subdir="../other_engagement",
+            actor="op",
         )
 
 
@@ -190,8 +239,11 @@ def test_refuses_on_absolute_path(active_eng):
     db, eng_id, root = active_eng
     with pytest.raises(AdapterError, match="escapes engagement"):
         run_gitleaks(
-            db, engagement_id=eng_id, engagements_root=root,
-            scan_subdir="/etc", actor="op",
+            db,
+            engagement_id=eng_id,
+            engagements_root=root,
+            scan_subdir="/etc",
+            actor="op",
         )
 
 
@@ -205,8 +257,11 @@ def test_refuses_on_symlink_escape(active_eng):
     try:
         with pytest.raises(AdapterError, match="escapes engagement"):
             run_gitleaks(
-                db, engagement_id=eng_id, engagements_root=root,
-                scan_subdir="escape_link", actor="op",
+                db,
+                engagement_id=eng_id,
+                engagements_root=root,
+                scan_subdir="escape_link",
+                actor="op",
             )
     finally:
         escape_link.unlink(missing_ok=True)
@@ -219,8 +274,11 @@ def test_allows_nested_subdir_inside_engagement(active_eng):
     nested = root / eng_id / "source" / "nested"
     nested.mkdir(parents=True, exist_ok=True)
     result = run_gitleaks(
-        db, engagement_id=eng_id, engagements_root=root,
-        scan_subdir="source/nested", actor="op",
+        db,
+        engagement_id=eng_id,
+        engagements_root=root,
+        scan_subdir="source/nested",
+        actor="op",
     )
     assert result.process_exit_code == 0
     assert result.findings_count == 0  # empty nested dir

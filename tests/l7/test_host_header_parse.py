@@ -6,6 +6,7 @@ the CONNECT authority, so CONNECT example.com:443 with
 Host: example.com:8443 passed. These tests exercise the parser that
 made the fix possible.
 """
+
 from __future__ import annotations
 
 import pytest

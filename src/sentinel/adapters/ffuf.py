@@ -13,6 +13,7 @@ Design decisions:
     fallback, or an explicit operator-configured directory.
   - GET requests only.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,9 +25,7 @@ from importlib import resources
 from pathlib import Path
 
 from sentinel.audit.store import AuditStore
-from sentinel.assets.store import AssetStore
 from sentinel.approval.store import ApprovalStore
-from sentinel.engagement.store import EngagementStore
 from sentinel.evidence.ingest import ingest_evidence, IngestResult
 from sentinel.runner.sandbox_runner import SandboxRequest, run_in_sandbox
 from sentinel.storage.db import Database, coerce_db
@@ -37,13 +36,14 @@ FFUF_TOOL_NAME = "ffuf"
 FFUF_VERSION = "2.1.0"
 PROFILE = "dir_discovery"
 
+
 def _wordlist_dir() -> Path:
     configured = os.environ.get("SENTINEL_WORDLIST_DIR")
     if configured:
         return Path(configured).expanduser().resolve()
-    resource_dir = Path(str(
-        resources.files("sentinel").joinpath("resources", "wordlists")
-    ))
+    resource_dir = Path(
+        str(resources.files("sentinel").joinpath("resources", "wordlists"))
+    )
     if resource_dir.is_dir():
         return resource_dir
     # Compatibility for a source checkout while redistribution rights for
@@ -59,11 +59,21 @@ WORDLIST_DIR = _wordlist_dir()
 
 # Paths that are refused by default. These are credential attack
 # surfaces where ffuf-style enumeration looks like brute force.
-DEFAULT_BLOCKED_PATHS = frozenset({
-    "/login", "/auth", "/password", "/reset",
-    "/admin/login", "/2fa", "/oauth", "/sso",
-    "/account/login", "/signin", "/sign_in",
-})
+DEFAULT_BLOCKED_PATHS = frozenset(
+    {
+        "/login",
+        "/auth",
+        "/password",
+        "/reset",
+        "/admin/login",
+        "/2fa",
+        "/oauth",
+        "/sso",
+        "/account/login",
+        "/signin",
+        "/sign_in",
+    }
+)
 
 # Extensions we will probe (single response body per extension).
 ALLOWED_EXTENSIONS = frozenset({"", ".php", ".html", ".json", ".txt", ".xml"})
@@ -154,14 +164,16 @@ def parse_output(stdout: str) -> list[FfufFinding]:
         # Extract the input path from the url
         path_match = re.search(r"^(?:https?://[^/]+)(/.*)?$", url)
         path = path_match.group(1) if path_match and path_match.group(1) else "/"
-        findings.append(FfufFinding(
-            path=path,
-            status=status,
-            length=length,
-            content_type=str(r.get("content-type", "") or ""),
-            redirect_location=str(r.get("redirectlocation", "") or "")[:500],
-            url=url,
-        ))
+        findings.append(
+            FfufFinding(
+                path=path,
+                status=status,
+                length=length,
+                content_type=str(r.get("content-type", "") or ""),
+                redirect_location=str(r.get("redirectlocation", "") or "")[:500],
+                url=url,
+            )
+        )
     return findings
 
 
@@ -205,7 +217,8 @@ def run_ffuf(
         rate = max(1, min(int(approval.request_rate_budget), 100))
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            FFUF_TOOL_NAME, FFUF_VERSION,
+            FFUF_TOOL_NAME,
+            FFUF_VERSION,
         )
         if manifest is None:
             raise FfufAdapterError(
@@ -219,16 +232,25 @@ def run_ffuf(
         # ffuf supports -request-proto and -rate
         argv = [
             manifest.manifest.executable_path,
-            "-u", target_url,
-            "-w", str(wordlist_path.resolve()),
-            "-of", "json",
-            "-o", "/dev/stdout",
-            "-mc", "200,201,202,204,301,302,307,308,401,403,405",
-            "-rate", str(rate),
-            "-t", "1",
-            "-timeout", "10",
+            "-u",
+            target_url,
+            "-w",
+            str(wordlist_path.resolve()),
+            "-of",
+            "json",
+            "-o",
+            "/dev/stdout",
+            "-mc",
+            "200,201,202,204,301,302,307,308,401,403,405",
+            "-rate",
+            str(rate),
+            "-t",
+            "1",
+            "-timeout",
+            "10",
             "-s",
-            "-X", "GET",
+            "-X",
+            "GET",
         ]
 
         request = SandboxRequest(
@@ -280,7 +302,8 @@ def run_ffuf(
             kept.append(f)
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"ffuf_{target_hostname}_{port}.json",
             content_type="application/json",
@@ -288,7 +311,8 @@ def run_ffuf(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -298,8 +322,10 @@ def run_ffuf(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
-            event_type="ffuf_run", decision="ok" if result.exit_code == 0 else "error",
+            engagement_id=engagement_id,
+            actor=actor,
+            event_type="ffuf_run",
+            decision="ok" if result.exit_code == 0 else "error",
             details={
                 "manifest_id": manifest.id,
                 "manifest_hash": manifest.manifest_hash,

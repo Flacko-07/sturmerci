@@ -14,6 +14,7 @@ Public surface:
 Raises CvssError on malformed input or non-4.0 vectors. Never guesses —
 an invalid vector returns an exception, not a zero score.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -70,11 +71,10 @@ def calculate_cvss_4_0(vector: str) -> CvssResult:
         raise CvssError(f"vector must be a non-empty str, got {vector!r}")
     v = vector.strip()
     if not v.startswith("CVSS:4.0/"):
-        raise CvssError(
-            f"only CVSS:4.0/ vectors are accepted, got {v[:40]!r}"
-        )
+        raise CvssError(f"only CVSS:4.0/ vectors are accepted, got {v[:40]!r}")
     try:
         from cvss import CVSS4
+
         parsed = CVSS4(v)
         score = float(parsed.base_score)
     except ImportError as e:

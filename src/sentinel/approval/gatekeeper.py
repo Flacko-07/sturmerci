@@ -5,6 +5,7 @@ Every request re-checks policy, scope, engagement state, approval state,
 tool/adapter/manifest hashes, target membership and (in a live release)
 remaining budgets. No network action may proceed without a positive Decision.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

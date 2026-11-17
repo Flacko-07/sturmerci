@@ -6,6 +6,7 @@ files. Free keyless sources: crt.sh, Certspotter, HackerTarget,
 Wayback, RapidDNS, AlienVault OTX. Key-gated sources (VirusTotal,
 Shodan, etc.) are silently skipped when env vars are unset.
 """
+
 from __future__ import annotations
 
 import re
@@ -33,12 +34,12 @@ PROFILE = "passive_discovery"
 # If any entry is missing from any of the three, SandboxRunner refuses
 # the run before spawning scion.
 SCION_FREE_PROVIDERS = (
-    "crt.sh",                  # Certificate Transparency aggregator
-    "api.certspotter.com",     # Cert Spotter API
-    "api.hackertarget.com",    # HackerTarget hostsearch
-    "web.archive.org",         # Wayback Machine CDX
-    "rapiddns.io",             # RapidDNS
-    "otx.alienvault.com",      # AlienVault OTX passive DNS
+    "crt.sh",  # Certificate Transparency aggregator
+    "api.certspotter.com",  # Cert Spotter API
+    "api.hackertarget.com",  # HackerTarget hostsearch
+    "web.archive.org",  # Wayback Machine CDX
+    "rapiddns.io",  # RapidDNS
+    "otx.alienvault.com",  # AlienVault OTX passive DNS
 )
 
 _HOSTNAME_RE = re.compile(
@@ -115,7 +116,8 @@ def run_scion(
         _validate_domain(target_domain)
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            SCION_TOOL_NAME, SCION_VERSION,
+            SCION_TOOL_NAME,
+            SCION_VERSION,
         )
         if manifest is None:
             raise ScionAdapterError(
@@ -164,7 +166,8 @@ def run_scion(
         findings = parse_output(result.stdout or "")
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"scion_{target_domain}.txt",
             content_type="text/plain",
@@ -172,7 +175,8 @@ def run_scion(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -182,7 +186,8 @@ def run_scion(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="scion_run",
             decision="ok" if result.exit_code == 0 else "error",
             details={

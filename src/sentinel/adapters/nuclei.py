@@ -5,11 +5,11 @@ Template authorization: docs/nuclei-template-intake.md.
 Hash format matches `find ... | sort | xargs sha256sum | sha256sum`:
   sha256( <hex>  <path>\n <hex>  <path>\n ... )
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-import os
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -68,21 +68,22 @@ def parse_output(jsonl: str) -> list[NucleiFinding]:
         if not isinstance(obj, dict):
             continue
         info = obj.get("info") or {}
-        out.append(NucleiFinding(
-            template_id=str(obj.get("template-id", "") or "")[:100],
-            name=str(info.get("name", "") or "")[:200],
-            severity=str(info.get("severity", "") or "unknown")[:20],
-            matched_at=str(obj.get("matched-at", "") or obj.get("host", ""))[:500],
-            type=str(obj.get("type", "") or "")[:20],
-        ))
+        out.append(
+            NucleiFinding(
+                template_id=str(obj.get("template-id", "") or "")[:100],
+                name=str(info.get("name", "") or "")[:200],
+                severity=str(info.get("severity", "") or "unknown")[:20],
+                matched_at=str(obj.get("matched-at", "") or obj.get("host", ""))[:500],
+                type=str(obj.get("type", "") or "")[:20],
+            )
+        )
     return out
 
 
 def _compute_templates_hash(base: Path) -> str:
     """Compute hash matching `find | sort | xargs sha256sum | sha256sum`."""
     files = sorted(
-        [p for p in base.rglob("*")
-         if p.is_file() and p.suffix in (".yaml", ".yml")],
+        [p for p in base.rglob("*") if p.is_file() and p.suffix in (".yaml", ".yml")],
         key=lambda p: str(p),
     )
     h = hashlib.sha256()
@@ -96,8 +97,10 @@ def _compute_templates_hash(base: Path) -> str:
 def _verify_templates_dir() -> None:
     """Recompute template dir hash and compare to pinned value."""
     from sentinel.runner.builtin_profiles import (
-        NUCLEI_TEMPLATES_DIR, NUCLEI_TEMPLATES_HASH,
+        NUCLEI_TEMPLATES_DIR,
+        NUCLEI_TEMPLATES_HASH,
     )
+
     base = Path(NUCLEI_TEMPLATES_DIR)
     if not base.is_dir():
         raise NucleiAdapterError(
@@ -139,16 +142,15 @@ def run_nuclei(
         _verify_templates_dir()
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            NUCLEI_TOOL_NAME, NUCLEI_VERSION,
+            NUCLEI_TOOL_NAME,
+            NUCLEI_VERSION,
         )
         if manifest is None:
             raise NucleiAdapterError(
                 f"no manifest for nuclei {NUCLEI_VERSION} — register first"
             )
         if not manifest.manifest.network_access:
-            raise NucleiAdapterError(
-                "nuclei manifest must be network_access=True"
-            )
+            raise NucleiAdapterError("nuclei manifest must be network_access=True")
 
         # Nuclei writes ~/.config/nuclei, ~/.cache/nuclei, ~/.pdcp at start.
         # `nobody` cannot write to the operator's home directory. Redirect HOME
@@ -212,7 +214,8 @@ def run_nuclei(
         findings = parse_output(result.stdout or "")
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"nuclei_{target_hostname}_{port}.jsonl",
             content_type="application/x-ndjson",
@@ -220,7 +223,8 @@ def run_nuclei(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -230,7 +234,8 @@ def run_nuclei(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="nuclei_run",
             decision="ok" if result.exit_code == 0 else "error",
             details={

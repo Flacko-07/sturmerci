@@ -11,6 +11,7 @@ canonical_value='<host>:<port>/<proto>'. They are never promoted to
 approved_assets automatically; the operator promotes explicitly after
 reviewing the output.
 """
+
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
@@ -19,7 +20,10 @@ from pathlib import Path
 
 from sentinel.assets.store import AssetStore
 from sentinel.runner.sandbox_runner import (
-    SandboxDenied, SandboxRequest, SandboxResult, run_in_sandbox,
+    SandboxDenied,
+    SandboxRequest,
+    SandboxResult,
+    run_in_sandbox,
 )
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
@@ -32,10 +36,22 @@ PROFILE = "tcp_connect_scan"
 # Flags that must never appear in a Nmap invocation. If an adapter ever
 # constructs argv containing one, we refuse before SandboxRunner sees it.
 FORBIDDEN_FLAGS = (
-    "--script", "-sC", "-sV", "-A", "-O",
-    "-sU", "-sS", "-sA", "-sW", "-sM",
-    "--traceroute", "--osscan-limit", "--osscan-guess",
-    "-sI", "-b", "--interactive",
+    "--script",
+    "-sC",
+    "-sV",
+    "-A",
+    "-O",
+    "-sU",
+    "-sS",
+    "-sA",
+    "-sW",
+    "-sM",
+    "--traceroute",
+    "--osscan-limit",
+    "--osscan-guess",
+    "-sI",
+    "-b",
+    "--interactive",
 )
 
 
@@ -88,12 +104,15 @@ def build_argv(
 
     argv = [
         executable_path,
-        "-sT",                 # TCP connect() — no raw sockets, no admin
-        "-Pn",                 # skip host discovery (ICMP may be blocked)
-        "-n",                  # no reverse DNS
-        "--max-rate", str(max_rate),
-        "-p", ",".join(str(p) for p in sorted(ports)),
-        "-oX", "-",            # XML to stdout
+        "-sT",  # TCP connect() — no raw sockets, no admin
+        "-Pn",  # skip host discovery (ICMP may be blocked)
+        "-n",  # no reverse DNS
+        "--max-rate",
+        str(max_rate),
+        "-p",
+        ",".join(str(p) for p in sorted(ports)),
+        "-oX",
+        "-",  # XML to stdout
         target,
     ]
     _assert_no_forbidden_flags(argv)
@@ -120,9 +139,7 @@ def parse_output(
     if not xml or not xml.strip():
         return findings
     if expected_protocol != "tcp":
-        raise ValueError(
-            f"only 'tcp' protocol is supported, got {expected_protocol!r}"
-        )
+        raise ValueError(f"only 'tcp' protocol is supported, got {expected_protocol!r}")
     try:
         root = ET.fromstring(xml)
     except ET.ParseError:
@@ -162,13 +179,15 @@ def parse_output(
             state = "unknown"
             if state_el is not None:
                 state = (state_el.get("state") or "unknown").lower()
-            findings.append(PortObservation(
-                host=target_hostname,
-                port=port_int,
-                protocol=protocol,
-                state=state,
-                ip=ip,
-            ))
+            findings.append(
+                PortObservation(
+                    host=target_hostname,
+                    port=port_int,
+                    protocol=protocol,
+                    state=state,
+                    ip=ip,
+                )
+            )
     return findings
 
 
@@ -228,7 +247,8 @@ def run_nmap(
     db_obj, owns_db = coerce_db(db)
     try:
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            NMAP_TOOL_NAME, NMAP_VERSION,
+            NMAP_TOOL_NAME,
+            NMAP_VERSION,
         )
         if manifest is None:
             raise SandboxDenied(
@@ -236,12 +256,11 @@ def run_nmap(
                 "docs/operator-guide.md for the registration script"
             )
         if not manifest.manifest.network_access:
-            raise SandboxDenied(
-                "nmap manifest is not network-capable"
-            )
+            raise SandboxDenied("nmap manifest is not network-capable")
 
         # Rate limit comes from the approval's request_rate_budget
         from sentinel.approval.store import ApprovalStore
+
         approval = ApprovalStore(db_obj).get(approval_id)
         if approval is None:
             raise SandboxDenied(f"approval {approval_id!r} not found")
@@ -360,7 +379,7 @@ def run_nmap(
             candidates_skipped_duplicate=duplicates,
             sandbox=sandbox_result,
             execution_status=sandbox_result.execution_status,
-    )
+        )
     finally:
         if owns_db:
             db_obj.close()

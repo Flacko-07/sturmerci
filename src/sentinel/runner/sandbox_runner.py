@@ -8,6 +8,7 @@ Invariant (M5.1 / E-22):
     No network-capable subprocess may be launched outside
     sentinel.runner.sandbox_runner.run_in_sandbox.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +23,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from sentinel.approval.budget import (
-    BudgetExhausted, check_available, reserve_budget, settle_budget,
+    BudgetExhausted,
+    check_available,
+    reserve_budget,
+    settle_budget,
 )
 from sentinel.approval.gatekeeper import RequestContext, check_request
 from sentinel.l7.ca import L7CA
@@ -30,7 +34,10 @@ from sentinel.l7.gatekeeper_filter import make_gatekeeper_filter
 from sentinel.l7.proxy import TLSProxy
 from sentinel.runner import builtin_profiles as _builtin_profiles  # noqa: F401
 from sentinel.runner.profiles import (
-    ProfileError, argv_hash, build_argv_for_profile, get_profile,
+    ProfileError,
+    argv_hash,
+    build_argv_for_profile,
+    get_profile,
 )
 from sentinel.approval.store import ApprovalStore
 from sentinel.assets.store import AssetStore, target_asset_ids_hash
@@ -38,7 +45,8 @@ from sentinel.audit.store import AuditStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.netns import nft as _nft
 from sentinel.netns.namespace import (
-    _kill_namespace_processes, run_namespace,
+    _kill_namespace_processes,
+    run_namespace,
 )
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
@@ -50,14 +58,16 @@ from sentinel.tools.manifests import ManifestStore
 # AWS_SECRET_ACCESS_KEY, GITHUB_TOKEN, etc.) into a sandboxed child that
 # was supposed to be isolated. Adapters that need a specific var set it
 # via env_overrides.
-_MINIMAL_SCANNER_ENV_KEYS = frozenset({
-    "PATH",
-    "HOME",       # overridden per-run by env_overrides for nuclei/msf
-    "TMPDIR",
-    "LC_ALL",
-    "LANG",
-    "TZ",
-})
+_MINIMAL_SCANNER_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "HOME",  # overridden per-run by env_overrides for nuclei/msf
+        "TMPDIR",
+        "LC_ALL",
+        "LANG",
+        "TZ",
+    }
+)
 
 
 class SandboxDenied(Exception):
@@ -71,8 +81,7 @@ class SandboxError(Exception):
 
 
 class _CappedTimeout(subprocess.TimeoutExpired):
-    def __init__(self, timeout_s, output, stderr, stdout_truncated,
-                 stderr_truncated):
+    def __init__(self, timeout_s, output, stderr, stdout_truncated, stderr_truncated):
         super().__init__("sandbox process", timeout_s, output=output, stderr=stderr)
         self.stdout_truncated = stdout_truncated
         self.stderr_truncated = stderr_truncated
@@ -83,9 +92,16 @@ class SandboxTimeout(SandboxError):
 
     execution_status = "TIMED_OUT"
 
-    def __init__(self, message: str, *, stdout_bytes: int = 0,
-                 stderr_bytes: int = 0, stdout_truncated: bool = False,
-                 stderr_truncated: bool = False, output_limit_bytes: int = 0):
+    def __init__(
+        self,
+        message: str,
+        *,
+        stdout_bytes: int = 0,
+        stderr_bytes: int = 0,
+        stdout_truncated: bool = False,
+        stderr_truncated: bool = False,
+        output_limit_bytes: int = 0,
+    ):
         super().__init__(message)
         self.stdout_bytes = stdout_bytes
         self.stderr_bytes = stderr_bytes
@@ -184,9 +200,9 @@ class SandboxRequest:
     def __post_init__(self) -> None:
         if self.env_mode not in ("minimal", "inherit"):
             raise ValueError(
-                f"env_mode must be 'minimal' or 'inherit', "
-                f"got {self.env_mode!r}"
+                f"env_mode must be 'minimal' or 'inherit', got {self.env_mode!r}"
             )
+
     # Working directory for the scanner process. None = inherit caller cwd.
     # IMPORTANT: some tools (msfconsole) run `pwd` at start and `cd` back
     # to it. If the caller was in a directory `nobody` cannot traverse
@@ -263,22 +279,19 @@ def _resolve_hostname(hostname: str) -> list[str]:
     return ips
 
 
-
-
 # Re-exported from sentinel.approval.state so the L7 gatekeeper filter
 # can share the same implementation without a circular import.
-from sentinel.approval.state import (
+from sentinel.approval.state import (  # noqa: E402
     current_scope_lock_hash as _current_scope_lock_hash,
     current_policy_hash as _current_policy_hash,
 )
+
 
 def _current_adapter_code_sha256(adapter_code_path: Path) -> str:
     """SHA-256 of the adapter source file. Adapter edits invalidate
     approvals because the executable argv-builder could have changed."""
     if not adapter_code_path.is_file():
-        raise SandboxDenied(
-            f"adapter source not found: {adapter_code_path}"
-        )
+        raise SandboxDenied(f"adapter source not found: {adapter_code_path}")
     return hashlib.sha256(adapter_code_path.read_bytes()).hexdigest()
 
 
@@ -312,6 +325,7 @@ def _verify_provider_hash(approval) -> None:
     fail-closed is supposed to catch.
     """
     from sentinel.approval.store import infrastructure_endpoints_hash
+
     if not approval.approved_infrastructure_endpoints:
         return  # no providers → no hash to verify
     stored = approval.approved_infrastructure_endpoints_hash or ""
@@ -323,9 +337,7 @@ def _verify_provider_hash(approval) -> None:
             "`sentinel approval issue` or set the hash to "
             "infrastructure_endpoints_hash(endpoints)."
         )
-    expected = infrastructure_endpoints_hash(
-        approval.approved_infrastructure_endpoints
-    )
+    expected = infrastructure_endpoints_hash(approval.approved_infrastructure_endpoints)
     if stored != expected:
         raise SandboxDenied(
             "approved infrastructure endpoints hash mismatch "
@@ -445,11 +457,13 @@ def _capped_communicate(
             return
 
     t_out = threading.Thread(
-        target=_reader, args=(proc.stdout, out_buf, out_trunc),
+        target=_reader,
+        args=(proc.stdout, out_buf, out_trunc),
         daemon=True,
     )
     t_err = threading.Thread(
-        target=_reader, args=(proc.stderr, err_buf, err_trunc),
+        target=_reader,
+        args=(proc.stderr, err_buf, err_trunc),
         daemon=True,
     )
     t_out.start()
@@ -464,15 +478,23 @@ def _capped_communicate(
         t_err.join(timeout=5.0)
     if timed_out:
         raise _CappedTimeout(
-            timeout_s, bytes(out_buf), bytes(err_buf),
-            out_trunc[0], err_trunc[0],
+            timeout_s,
+            bytes(out_buf),
+            bytes(err_buf),
+            out_trunc[0],
+            err_trunc[0],
         )
     return bytes(out_buf), bytes(err_buf), out_trunc[0], err_trunc[0]
 
 
 def _audit(
-    db: Database, engagement_id: str, actor: str, event_type: str,
-    details: dict, *, fail_closed: bool = False,
+    db: Database,
+    engagement_id: str,
+    actor: str,
+    event_type: str,
+    details: dict,
+    *,
+    fail_closed: bool = False,
 ) -> int | None:
     """Append an audit event.
 
@@ -518,23 +540,39 @@ def _run_sandbox_inner(
     mstore = ManifestStore(db)
     manifest = mstore.get_by_tool_version(adapter_name, adapter_version)
     if manifest is None:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "manifest_not_found",
-                "adapter": adapter_name, "version": adapter_version})
-        raise SandboxDenied(
-            f"no manifest for {adapter_name!r} {adapter_version!r}"
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {
+                "reason": "manifest_not_found",
+                "adapter": adapter_name,
+                "version": adapter_version,
+            },
         )
+        raise SandboxDenied(f"no manifest for {adapter_name!r} {adapter_version!r}")
     if not manifest.manifest.network_access:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "manifest_not_network"})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "manifest_not_network"},
+        )
         raise SandboxDenied(
             f"manifest {adapter_name!r} is not network-capable; "
             "SandboxRunner is for network adapters only"
         )
     ok, reason = mstore.verify(manifest.id)
     if not ok:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "manifest_drift", "detail": reason})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "manifest_drift", "detail": reason},
+        )
         raise SandboxDenied(f"manifest DB drift: {reason}")
     try:
         _verify_binary_digest(
@@ -542,23 +580,36 @@ def _run_sandbox_inner(
             manifest.manifest.executable_sha256,
         )
     except SandboxDenied as e:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "binary_digest", "detail": str(e)})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "binary_digest", "detail": str(e)},
+        )
         raise
 
     # 2. Approval
     astore = ApprovalStore(db)
     approval = astore.get(approval_id)
     if approval is None:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "approval_not_found", "approval_id": approval_id})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "approval_not_found", "approval_id": approval_id},
+        )
         raise SandboxDenied(f"approval {approval_id!r} not found")
     if approval.engagement_id != engagement_id:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "approval_wrong_engagement"})
-        raise SandboxDenied(
-            f"approval {approval_id!r} belongs to another engagement"
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "approval_wrong_engagement"},
         )
+        raise SandboxDenied(f"approval {approval_id!r} belongs to another engagement")
 
     # (v4.1) Proxy mode requires lab_environment=True for ALL requests,
     # not just protected-IP ones. The reviewer's finding: the protected-IP
@@ -567,16 +618,22 @@ def _run_sandbox_inner(
     # upstream connect is not nft-filtered. Until kernel-level upstream
     # egress exists (deferred), every proxy execution is lab-only.
     if request.use_tls_proxy and not approval.lab_environment:
-        _audit(db, engagement_id, actor, "sandbox_denied", {
-            "reason": "proxy_mode_requires_lab",
-            "approval_id": approval_id,
-        })
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {
+                "reason": "proxy_mode_requires_lab",
+                "approval_id": approval_id,
+            },
+        )
         raise SandboxDenied(
-            f"use_tls_proxy=True requires approval.lab_environment=True. "
-            f"The proxy runs in the main namespace and its upstream connect "
-            f"is not nft-filtered. See docs/egress-architecture-v1.1.md "
-            f"§11.7. Re-issue the approval with --lab (requires "
-            f"engagement.platform='lab')."
+            "use_tls_proxy=True requires approval.lab_environment=True. "
+            "The proxy runs in the main namespace and its upstream connect "
+            "is not nft-filtered. See docs/egress-architecture-v1.1.md "
+            "§11.7. Re-issue the approval with --lab (requires "
+            "engagement.platform='lab')."
         )
 
     # M7.2c: path-restricted approvals allowed ONLY when use_tls_proxy=True.
@@ -585,9 +642,16 @@ def _run_sandbox_inner(
     profile = (approval.allowed_path_profile or "default").strip().lower()
     if profile not in ("", "default"):
         if not request.use_tls_proxy:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "path_restricted_without_proxy",
-                    "profile": approval.allowed_path_profile})
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "path_restricted_without_proxy",
+                    "profile": approval.allowed_path_profile,
+                },
+            )
             raise SandboxDenied(
                 f"path-restricted approval requires use_tls_proxy=True: "
                 f"allowed_path_profile={approval.allowed_path_profile!r}. "
@@ -597,8 +661,13 @@ def _run_sandbox_inner(
             )
         prefixes = list(approval.allowed_path_prefixes or [])
         if not prefixes:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "restricted_mode_no_prefixes"})
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {"reason": "restricted_mode_no_prefixes"},
+            )
             raise SandboxDenied(
                 "restricted path profile requires at least one prefix in "
                 "allowed_path_prefixes (configuration error)"
@@ -612,14 +681,20 @@ def _run_sandbox_inner(
             manifest.manifest.infrastructure_endpoints,
         )
     except SandboxDenied as e:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "provider_nesting", "detail": str(e)})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "provider_nesting", "detail": str(e)},
+        )
         raise
 
     # 2c. Aggregate budget availability (P1.7)
     try:
         check_available(
-            db, approval_id,
+            db,
+            approval_id,
             estimated_requests=request.estimated_requests,
             # (v4.1) Real reservation: prior version passed 0, allowing
             # a single run to exceed remaining budget. Now passes the
@@ -629,27 +704,46 @@ def _run_sandbox_inner(
             estimated_runtime_seconds=float(request.timeout_seconds),
         )
     except BudgetExhausted as e:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "budget", "detail": e.reason})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "budget", "detail": e.reason},
+        )
         raise SandboxDenied(f"budget: {e.reason}") from e
 
     # 2c. Class 3 authorization gate (ECR v1.0.2)
     if manifest.manifest.execution_class >= 3:
         if not approval.intrusive_authorized:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "class3_no_intrusive_auth",
-                "tool": adapter_name, "version": adapter_version,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "class3_no_intrusive_auth",
+                    "tool": adapter_name,
+                    "version": adapter_version,
+                },
+            )
             raise SandboxDenied(
                 f"tool {adapter_name!r} is Class 3 (intrusive). "
                 "Approval must set intrusive_authorized=True. "
                 "See docs/ecr-v1.0.2-class3-amendment.md."
             )
         if not approval.lab_environment:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "class3_lab_required",
-                "tool": adapter_name, "version": adapter_version,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "class3_lab_required",
+                    "tool": adapter_name,
+                    "version": adapter_version,
+                },
+            )
             raise SandboxDenied(
                 f"tool {adapter_name!r} is Class 3 (intrusive). "
                 "Approval must set lab_environment=True (no real targets "
@@ -658,15 +752,19 @@ def _run_sandbox_inner(
 
     # 3. argv[0] must match manifest executable
     if not request.argv:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "empty_argv"})
+        _audit(db, engagement_id, actor, "sandbox_denied", {"reason": "empty_argv"})
         raise SandboxDenied("empty argv")
     try:
         argv0_resolved = Path(request.argv[0]).resolve()
         manifest_bin = Path(manifest.manifest.executable_path).resolve()
     except (OSError, ValueError) as e:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "argv0_invalid", "detail": str(e)})
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {"reason": "argv0_invalid", "detail": str(e)},
+        )
         raise SandboxDenied(f"argv[0] path invalid: {e}") from e
     if argv0_resolved != manifest_bin:
         # (batch-1) test-only escape: profiles named test/* that set
@@ -676,36 +774,48 @@ def _run_sandbox_inner(
         if request.operation_profile is not None:
             try:
                 from sentinel.runner.profiles import get_profile as _gp
+
                 _prof_for_override = _gp(request.operation_profile)
             except Exception:
                 _prof_for_override = None
         if _prof_for_override is None or not _prof_for_override.allow_argv0_override:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "argv0_mismatch"})
+            _audit(
+                db, engagement_id, actor, "sandbox_denied", {"reason": "argv0_mismatch"}
+            )
             raise SandboxDenied(
                 f"argv[0] {request.argv[0]!r} does not match manifest "
                 f"executable {manifest.manifest.executable_path!r}"
             )
         # Override path — verify the actual binary is a real file.
         if not argv0_resolved.is_file():
-            raise SandboxDenied(
-                f"argv[0] override: {argv0_resolved} is not a file"
-            )
-        _audit(db, engagement_id, actor, "sandbox_argv0_override", {
-            "manifest_bin": str(manifest_bin),
-            "actual_bin": str(argv0_resolved),
-            "profile": request.operation_profile,
-        })
+            raise SandboxDenied(f"argv[0] override: {argv0_resolved} is not a file")
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_argv0_override",
+            {
+                "manifest_bin": str(manifest_bin),
+                "actual_bin": str(argv0_resolved),
+                "profile": request.operation_profile,
+            },
+        )
 
     # 3a. (P0.1) Network-capable operations MUST declare an operation
     # profile. Before this check, the runner accepted direct-argv network
     # operations with no profile verification at all — an adapter could
     # construct arbitrary argv and the only boundary was argv[0].
     if request.operation_profile is None:
-        _audit(db, engagement_id, actor, "sandbox_denied", {
-            "reason": "operation_profile_required",
-            "adapter": adapter_name,
-        })
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {
+                "reason": "operation_profile_required",
+                "adapter": adapter_name,
+            },
+        )
         raise SandboxDenied(
             f"network-capable manifest {adapter_name!r} requires an "
             f"operation_profile. Adapters must declare a profile name "
@@ -720,11 +830,17 @@ def _run_sandbox_inner(
     # could authorize the other. Namespaced identity must be exact.
     _allowed = set(manifest.manifest.allowed_profiles)
     if request.operation_profile not in _allowed:
-        _audit(db, engagement_id, actor, "sandbox_denied", {
-            "reason": "operation_profile_not_in_manifest",
-            "profile": request.operation_profile,
-            "manifest_allowed": sorted(_allowed),
-        })
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {
+                "reason": "operation_profile_not_in_manifest",
+                "profile": request.operation_profile,
+                "manifest_allowed": sorted(_allowed),
+            },
+        )
         raise SandboxDenied(
             f"operation_profile {request.operation_profile!r} not in "
             f"manifest {adapter_name!r}.allowed_profiles "
@@ -737,11 +853,17 @@ def _run_sandbox_inner(
     for _tok in request.argv:
         for _forb in manifest.manifest.prohibited:
             if _tok == _forb or _tok.startswith(_forb + "="):
-                _audit(db, engagement_id, actor, "sandbox_denied", {
-                    "reason": "manifest_prohibited_token",
-                    "forbidden": _forb,
-                    "token": _tok[:200],
-                })
+                _audit(
+                    db,
+                    engagement_id,
+                    actor,
+                    "sandbox_denied",
+                    {
+                        "reason": "manifest_prohibited_token",
+                        "forbidden": _forb,
+                        "token": _tok[:200],
+                    },
+                )
                 raise SandboxDenied(
                     f"argv contains manifest-prohibited token {_tok!r} "
                     f"(prohibited by manifest: {_forb!r})"
@@ -756,16 +878,25 @@ def _run_sandbox_inner(
     # check runs before the profile rebuild and is independent of the
     # earlier allowed_profiles check (which only verifies manifest
     # membership, not approval binding).
-    if request.operation_profile and approval.operation_profile_id != request.operation_profile:
+    if (
+        request.operation_profile
+        and approval.operation_profile_id != request.operation_profile
+    ):
         # (batch A) Exact match only. Approval binds to the full
         # namespaced profile; suffix fallback would let an approval for
         # "scion/passive_discovery" run "theharvester/passive_discovery".
         if request.operation_profile != approval.operation_profile_id:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "operation_profile_not_bound_to_approval",
-                "requested": request.operation_profile,
-                "approval_bound": approval.operation_profile_id,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "operation_profile_not_bound_to_approval",
+                    "requested": request.operation_profile,
+                    "approval_bound": approval.operation_profile_id,
+                },
+            )
             raise SandboxDenied(
                 f"request operation_profile "
                 f"{request.operation_profile!r} does not match the "
@@ -782,27 +913,47 @@ def _run_sandbox_inner(
                 params=dict(request.profile_params or {}),
             )
         except ProfileError as e:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "profile_build_failed",
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "profile_build_failed",
                     "profile": request.operation_profile,
-                    "detail": str(e)})
+                    "detail": str(e),
+                },
+            )
             raise SandboxDenied(f"profile {request.operation_profile!r}: {e}") from e
         _profile = get_profile(request.operation_profile)
         if _profile.requires_param_binding and not approval.normalized_arguments_hash:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "required_profile_params_not_bound",
-                "profile": request.operation_profile,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "required_profile_params_not_bound",
+                    "profile": request.operation_profile,
+                },
+            )
             raise SandboxDenied(
                 f"profile {request.operation_profile!r} requires its parameters "
                 "to be bound at approval issue time. Re-issue the approval."
             )
         if canonical_argv != request.argv:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "argv_mismatch_vs_profile",
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "argv_mismatch_vs_profile",
                     "profile": request.operation_profile,
                     "expected_hash": argv_hash(canonical_argv),
-                    "actual_hash": argv_hash(request.argv)})
+                    "actual_hash": argv_hash(request.argv),
+                },
+            )
             raise SandboxDenied(
                 f"request.argv does not match the canonical argv "
                 f"produced by profile {request.operation_profile!r}. "
@@ -822,11 +973,17 @@ def _run_sandbox_inner(
         required_keys = set(_bound_profile.param_binding_keys)
         missing_bound_keys = required_keys - set(approval.profile_params)
         if missing_bound_keys:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "required_profile_params_missing_from_approval",
-                "profile": request.operation_profile,
-                "missing_keys": sorted(missing_bound_keys),
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "required_profile_params_missing_from_approval",
+                    "profile": request.operation_profile,
+                    "missing_keys": sorted(missing_bound_keys),
+                },
+            )
             raise SandboxDenied(
                 f"approval is missing required bound parameters: "
                 f"{sorted(missing_bound_keys)}"
@@ -834,6 +991,7 @@ def _run_sandbox_inner(
 
     if approval.normalized_arguments_hash:
         from sentinel.runner.profiles import params_hash as _params_hash
+
         # Extract ONLY the keys the approval bound. request.profile_params
         # may have additional run-time params (hostname, port) that were
         # not part of the original commitment — those are already covered
@@ -843,19 +1001,22 @@ def _run_sandbox_inner(
             if _bound_profile and _bound_profile.requires_param_binding
             else set(approval.profile_params.keys())
         )
-        _actual = {
-            k: str(request.profile_params.get(k, ""))
-            for k in _bound_keys
-        }
+        _actual = {k: str(request.profile_params.get(k, "")) for k in _bound_keys}
         _actual_hash = _params_hash(_actual)
         if _actual_hash != approval.normalized_arguments_hash:
-            _audit(db, engagement_id, actor, "sandbox_denied", {
-                "reason": "normalized_arguments_hash_mismatch",
-                "profile": request.operation_profile,
-                "bound_keys": sorted(_bound_keys),
-                "expected_prefix": approval.normalized_arguments_hash[:16],
-                "actual_prefix": _actual_hash[:16],
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {
+                    "reason": "normalized_arguments_hash_mismatch",
+                    "profile": request.operation_profile,
+                    "bound_keys": sorted(_bound_keys),
+                    "expected_prefix": approval.normalized_arguments_hash[:16],
+                    "actual_prefix": _actual_hash[:16],
+                },
+            )
             raise SandboxDenied(
                 f"request.profile_params do not match the params bound "
                 f"at approval issue time (expected hash "
@@ -874,22 +1035,34 @@ def _run_sandbox_inner(
         _profile = get_profile(request.operation_profile)
         if _profile.execution_class >= 3:
             if not approval.intrusive_authorized:
-                _audit(db, engagement_id, actor, "sandbox_denied", {
-                    "reason": "class3_profile_no_intrusive_auth",
-                    "profile": request.operation_profile,
-                    "profile_class": _profile.execution_class,
-                })
+                _audit(
+                    db,
+                    engagement_id,
+                    actor,
+                    "sandbox_denied",
+                    {
+                        "reason": "class3_profile_no_intrusive_auth",
+                        "profile": request.operation_profile,
+                        "profile_class": _profile.execution_class,
+                    },
+                )
                 raise SandboxDenied(
                     f"profile {request.operation_profile!r} is Class 3 "
                     f"(intrusive). Approval must set intrusive_authorized=True. "
                     f"See docs/ecr-v1.0.2-class3-amendment.md."
                 )
             if not approval.lab_environment:
-                _audit(db, engagement_id, actor, "sandbox_denied", {
-                    "reason": "class3_profile_lab_required",
-                    "profile": request.operation_profile,
-                    "profile_class": _profile.execution_class,
-                })
+                _audit(
+                    db,
+                    engagement_id,
+                    actor,
+                    "sandbox_denied",
+                    {
+                        "reason": "class3_profile_lab_required",
+                        "profile": request.operation_profile,
+                        "profile_class": _profile.execution_class,
+                    },
+                )
                 raise SandboxDenied(
                     f"profile {request.operation_profile!r} is Class 3 "
                     f"(intrusive). Approval must set lab_environment=True. "
@@ -905,10 +1078,17 @@ def _run_sandbox_inner(
     _scope_check = request.scope_target or request.hostname
     target_asset_id = _asset_id_for_hostname(db, engagement_id, _scope_check)
     if target_asset_id is None:
-        _audit(db, engagement_id, actor, "sandbox_denied",
-               {"reason": "hostname_not_approved",
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_denied",
+            {
+                "reason": "hostname_not_approved",
                 "scope_target": _scope_check,
-                "hostname": request.hostname})
+                "hostname": request.hostname,
+            },
+        )
         raise SandboxDenied(
             f"scope_target {_scope_check!r} is not in approved_assets "
             f"for engagement {engagement_id!r}"
@@ -937,9 +1117,11 @@ def _run_sandbox_inner(
         engagement_id=engagement_id,
         engagement_state=eng.state,
         policy_snapshot_hash=_current_policy_hash(
-            db, engagement_id, approval.policy_snapshot_hash),
+            db, engagement_id, approval.policy_snapshot_hash
+        ),
         scope_lock_hash=_current_scope_lock_hash(
-            db, engagement_id, approval.scope_lock_hash),
+            db, engagement_id, approval.scope_lock_hash
+        ),
         target_asset_ids_hash=target_asset_ids_hash(current_target_ids),
         target_asset_id=target_asset_id,
         tool_executable_sha256=manifest.manifest.executable_sha256,
@@ -974,12 +1156,14 @@ def _run_sandbox_inner(
         )
         decision = check_request(astore, approval_id, ctx_port)
         if not decision.allowed:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "gatekeeper", "port": port,
-                    "detail": decision.reason})
-            raise SandboxDenied(
-                f"gatekeeper denied (port {port}): {decision.reason}"
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {"reason": "gatekeeper", "port": port, "detail": decision.reason},
             )
+            raise SandboxDenied(f"gatekeeper denied (port {port}): {decision.reason}")
 
     # 7. Resolve target + providers; protected-range check on every IP
     hostnames_to_resolve = [request.hostname, *request.provider_endpoints]
@@ -988,13 +1172,22 @@ def _run_sandbox_inner(
         try:
             ips = _resolve_hostname(h)
         except Exception as e:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "resolve_failed", "hostname": h,
-                    "detail": str(e)})
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {"reason": "resolve_failed", "hostname": h, "detail": str(e)},
+            )
             raise SandboxDenied(f"resolution failed for {h!r}: {e}") from e
         if not ips:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "no_dns_answer", "hostname": h})
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {"reason": "no_dns_answer", "hostname": h},
+            )
             raise SandboxDenied(f"{h!r} did not resolve")
         for ip in ips:
             protected, rng = _is_protected(ip)
@@ -1010,21 +1203,31 @@ def _run_sandbox_inner(
                 # egress test suite exercises the proxy against a
                 # 127.0.0.1 fixture server.
                 if request.use_tls_proxy and approval.lab_environment:
-                    _audit(db, engagement_id, actor,
-                           "sandbox_protected_target_proxied_lab",
-                           {"hostname": h, "ip": ip, "range": rng})
-                else:
-                    _audit(db, engagement_id, actor, "sandbox_denied",
-                           {"reason": (
-                               "protected_ip_proxy_mode"
-                               if request.use_tls_proxy
-                               else "protected_ip"
-                           ),
-                            "hostname": h, "ip": ip, "range": rng})
-                    msg = (
-                        f"{h!r} resolved to protected IP {ip} "
-                        f"(range {rng})"
+                    _audit(
+                        db,
+                        engagement_id,
+                        actor,
+                        "sandbox_protected_target_proxied_lab",
+                        {"hostname": h, "ip": ip, "range": rng},
                     )
+                else:
+                    _audit(
+                        db,
+                        engagement_id,
+                        actor,
+                        "sandbox_denied",
+                        {
+                            "reason": (
+                                "protected_ip_proxy_mode"
+                                if request.use_tls_proxy
+                                else "protected_ip"
+                            ),
+                            "hostname": h,
+                            "ip": ip,
+                            "range": rng,
+                        },
+                    )
+                    msg = f"{h!r} resolved to protected IP {ip} (range {rng})"
                     if request.use_tls_proxy:
                         msg += (
                             " — proxy mode requires an approval with "
@@ -1093,23 +1296,22 @@ def _run_sandbox_inner(
             # The cert is public; make it readable by `nobody` in the sandbox
             try:
                 import os as _os
+
                 _os.chmod(proxy_ca_dir, 0o755)
                 _os.chmod(proxy_ca_path, 0o644)
             except OSError:
                 pass
 
             gatekeeper_filt = make_gatekeeper_filter(
-                db, approval_id, cache_ttl=0.5,
+                db,
+                approval_id,
+                cache_ttl=0.5,
             )
             # Pinned upstream IPs: use the EXACT IPs the gatekeeper
             # resolved, not a fresh lookup by the proxy. This closes the
             # DNS-rebinding vector (M7-P0-B). If the pin isn't here, the
             # proxy refuses CONNECT to that hostname.
-            pinned = {
-                h: resolved[h]
-                for h in hostnames_to_resolve
-                if h in resolved
-            }
+            pinned = {h: resolved[h] for h in hostnames_to_resolve if h in resolved}
             proxy = TLSProxy(
                 ca=proxy_ca,
                 request_filter=gatekeeper_filt,
@@ -1133,24 +1335,33 @@ def _run_sandbox_inner(
             # 10.99.0.1. Appending the accept rule would place it after
             # that drop -- never reached. Insert at head.
             _nft.add_approved(
-                ns.main_gateway_ip, proxy_port,
+                ns.main_gateway_ip,
+                proxy_port,
                 saddr=f"{ns.ns_ip}/32",
                 chain=_nft.INPUT_CHAIN,
                 comment=f"allow-proxy-{proxy_port}",
                 allow_protected=True,
                 insert=True,
             )
-            _audit(db, engagement_id, actor, "sandbox_proxy_started", {
-                "approval_id": approval_id,
-                "proxy_port": proxy_port,
-                "proxy_ip": ns.main_gateway_ip,
-                "connect_hosts": sorted(approval.canonical_hostnames),
-            }, fail_closed=True)
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_proxy_started",
+                {
+                    "approval_id": approval_id,
+                    "proxy_port": proxy_port,
+                    "proxy_ip": ns.main_gateway_ip,
+                    "connect_hosts": sorted(approval.canonical_hostnames),
+                },
+                fail_closed=True,
+            )
 
         # (batch-4) Snapshot the pre-run policy and manifest hashes for
         # the watchdog's drift check.
         _wd_initial_policy = _current_policy_hash(
-            db, engagement_id, approval.policy_snapshot_hash)
+            db, engagement_id, approval.policy_snapshot_hash
+        )
         _wd_initial_manifest = manifest.manifest_hash
 
         def _watchdog():
@@ -1170,7 +1381,9 @@ def _run_sandbox_inner(
                         # authorization state, we cannot assume the run is
                         # still permitted. Kill and revoke.
                         if not stop_watchdog.is_set():
-                            revocation_reason[0] = f"watchdog_db_error:{type(e).__name__}"
+                            revocation_reason[0] = (
+                                f"watchdog_db_error:{type(e).__name__}"
+                            )
                             try:
                                 _kill_namespace_processes(ns.ns_name)
                             except Exception:
@@ -1201,11 +1414,14 @@ def _run_sandbox_inner(
                     if reason is None:
                         try:
                             current_policy = _current_policy_hash(
-                                wd_db, engagement_id, _wd_initial_policy)
+                                wd_db, engagement_id, _wd_initial_policy
+                            )
                         except Exception:
                             current_policy = None
-                        if (current_policy is not None
-                                and current_policy != _wd_initial_policy):
+                        if (
+                            current_policy is not None
+                            and current_policy != _wd_initial_policy
+                        ):
                             reason = "policy_changed_mid_run"
 
                     # (batch-4) Manifest drift: the tool's declared hash
@@ -1214,13 +1430,15 @@ def _run_sandbox_inner(
                     if reason is None:
                         try:
                             current_manifest_reg = ManifestStore(
-                                wd_db).get_by_tool_version(
-                                    adapter_name, adapter_version)
+                                wd_db
+                            ).get_by_tool_version(adapter_name, adapter_version)
                         except Exception:
                             current_manifest_reg = None
-                        if (current_manifest_reg is None
-                                or current_manifest_reg.manifest_hash
-                                != _wd_initial_manifest):
+                        if (
+                            current_manifest_reg is None
+                            or current_manifest_reg.manifest_hash
+                            != _wd_initial_manifest
+                        ):
                             reason = "manifest_changed_mid_run"
 
                     if reason is not None:
@@ -1242,87 +1460,114 @@ def _run_sandbox_inner(
 
         # Pre-spawn audits (unchanged).
         for provider in request.provider_endpoints:
-            _audit(db, engagement_id, actor, "sandbox_provider_contact", {
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_provider_contact",
+                {
+                    "approval_id": approval_id,
+                    "provider": provider,
+                    "provider_ips": resolved[provider],
+                    "target_hostname": request.hostname,
+                    "target_ip": primary_ip,
+                    "namespace": ns.ns_name,
+                    "manifest_id": manifest.id,
+                },
+                fail_closed=True,
+            )
+
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_start",
+            {
                 "approval_id": approval_id,
-                "provider": provider,
-                "provider_ips": resolved[provider],
+                "adapter": adapter_name,
+                "adapter_version": adapter_version,
                 "target_hostname": request.hostname,
                 "target_ip": primary_ip,
+                "ports": list(all_ports),
+                "providers": list(request.provider_endpoints),
                 "namespace": ns.ns_name,
-                "manifest_id": manifest.id,
-            }, fail_closed=True)
-
-        _audit(db, engagement_id, actor, "sandbox_start", {
-            "approval_id": approval_id,
-            "adapter": adapter_name,
-            "adapter_version": adapter_version,
-            "target_hostname": request.hostname,
-            "target_ip": primary_ip,
-            "ports": list(all_ports),
-            "providers": list(request.provider_endpoints),
-            "namespace": ns.ns_name,
-            "argv_sha256": hashlib.sha256(
-                json.dumps(request.argv, separators=(",", ":")).encode()
-            ).hexdigest(),
-        }, fail_closed=True)
+                "argv_sha256": hashlib.sha256(
+                    json.dumps(request.argv, separators=(",", ":")).encode()
+                ).hexdigest(),
+            },
+            fail_closed=True,
+        )
 
         scanner_path = Path(request.argv[0])
         try:
             st = scanner_path.stat()
         except OSError as e:
-            _audit(db, engagement_id, actor, "sandbox_error",
-                   {"reason": "scanner_stat_failed", "detail": str(e)},
-                   fail_closed=False)
-            raise SandboxError(
-                f"cannot stat scanner {scanner_path}: {e}"
-            ) from e
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_error",
+                {"reason": "scanner_stat_failed", "detail": str(e)},
+                fail_closed=False,
+            )
+            raise SandboxError(f"cannot stat scanner {scanner_path}: {e}") from e
         if not (st.st_mode & 0o001):
-            _audit(db, engagement_id, actor, "sandbox_error",
-                   {"reason": "scanner_not_world_exec",
-                    "path": str(scanner_path)},
-                   fail_closed=False)
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_error",
+                {"reason": "scanner_not_world_exec", "path": str(scanner_path)},
+                fail_closed=False,
+            )
             raise SandboxError(
-                f"scanner {scanner_path} is not world-executable; "
-                "nobody cannot run it."
+                f"scanner {scanner_path} is not world-executable; nobody cannot run it."
             )
 
         wrapped = [
-                "ip", "netns", "exec", ns.ns_name,
-                "setpriv",
-                # M6-01: flags ordered so capability drops happen BEFORE
-                # the uid drop. Dropping the bounding set requires
-                # CAP_SETPCAP, which is lost after --reuid. Bounding set
-                # first, then group/reuid.
-                "--bounding-set=-all",
-                "--inh-caps=-all",
-                "--ambient-caps=-all",
-                "--reuid=nobody", "--regid=nogroup",
-                "--clear-groups",
-                "--no-new-privs",
-                "--",
-                *request.argv,
-            ]
+            "ip",
+            "netns",
+            "exec",
+            ns.ns_name,
+            "setpriv",
+            # M6-01: flags ordered so capability drops happen BEFORE
+            # the uid drop. Dropping the bounding set requires
+            # CAP_SETPCAP, which is lost after --reuid. Bounding set
+            # first, then group/reuid.
+            "--bounding-set=-all",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--reuid=nobody",
+            "--regid=nogroup",
+            "--clear-groups",
+            "--no-new-privs",
+            "--",
+            *request.argv,
+        ]
         # If proxying, inject HTTPS_PROXY and CA env vars. setpriv
         # preserves environment, so these reach the scanner unmodified.
         # (batch-4) Build the scanner env from the configured base. Default
         # is a minimal allowlist, not the parent's full env.
         import os as _os
+
         if request.env_mode == "inherit":
             scanner_env = dict(_os.environ)
         elif request.env_mode == "minimal":
             scanner_env = {
-                k: v for k, v in _os.environ.items()
-                if k in _MINIMAL_SCANNER_ENV_KEYS
+                k: v for k, v in _os.environ.items() if k in _MINIMAL_SCANNER_ENV_KEYS
             }
         else:
             raise SandboxError(
-                f"unknown env_mode {request.env_mode!r}; "
-                f"must be 'minimal' or 'inherit'"
+                f"unknown env_mode {request.env_mode!r}; must be 'minimal' or 'inherit'"
             )
 
         # Proxy env injection (unchanged behaviour, applied to whichever
         # base env we built).
-        if request.use_tls_proxy and proxy_port is not None and proxy_ca_path is not None:
+        if (
+            request.use_tls_proxy
+            and proxy_port is not None
+            and proxy_ca_path is not None
+        ):
             proxy_url = f"http://{ns.main_gateway_ip}:{proxy_port}"
             scanner_env["HTTPS_PROXY"] = proxy_url
             scanner_env["https_proxy"] = proxy_url
@@ -1338,13 +1583,20 @@ def _run_sandbox_inner(
 
         try:
             reservation_id, aggregate_output_cap = reserve_budget(
-                db, approval_id, requests=request.estimated_requests,
+                db,
+                approval_id,
+                requests=request.estimated_requests,
                 requested_bytes=request.max_output_bytes * 2,
                 runtime_seconds=float(request.timeout_seconds),
             )
         except BudgetExhausted as e:
-            _audit(db, engagement_id, actor, "sandbox_denied",
-                   {"reason": "budget_reservation", "detail": e.reason})
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_denied",
+                {"reason": "budget_reservation", "detail": e.reason},
+            )
             raise SandboxDenied(f"execution budget exhausted: {e.reason}") from e
         per_stream_cap = max(1, aggregate_output_cap // 2)
         try:
@@ -1358,20 +1610,34 @@ def _run_sandbox_inner(
                 cwd=str(request.cwd) if request.cwd is not None else None,
             )
         except BaseException as spawn_error:
-            settle_budget(db, reservation_id, actual_bytes=0,
-                          actual_runtime_seconds=0, spawned=False)
-            _audit(db, engagement_id, actor, "sandbox_error", {
-                "reason": "process_spawn_failed",
-                "error_type": type(spawn_error).__name__,
-            })
+            settle_budget(
+                db,
+                reservation_id,
+                actual_bytes=0,
+                actual_runtime_seconds=0,
+                spawned=False,
+            )
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_error",
+                {
+                    "reason": "process_spawn_failed",
+                    "error_type": type(spawn_error).__name__,
+                },
+            )
             raise
         watchdog_thread = None
         try:
             watchdog_thread = threading.Thread(target=_watchdog, daemon=True)
             watchdog_thread.start()
-            (stdout_bytes, stderr_bytes,
-             stdout_truncated, stderr_truncated) = _capped_communicate(
-                proc, request.timeout_seconds, per_stream_cap,
+            (stdout_bytes, stderr_bytes, stdout_truncated, stderr_truncated) = (
+                _capped_communicate(
+                    proc,
+                    request.timeout_seconds,
+                    per_stream_cap,
+                )
             )
             stdout_data = stdout_bytes.decode("utf-8", errors="replace")
             stderr_data = stderr_bytes.decode("utf-8", errors="replace")
@@ -1414,16 +1680,25 @@ def _run_sandbox_inner(
             except Exception:
                 pass
             settle_budget(
-                db, reservation_id,
-                actual_bytes=(len(locals().get("stdout_bytes", b""))
-                              + len(locals().get("stderr_bytes", b""))),
+                db,
+                reservation_id,
+                actual_bytes=(
+                    len(locals().get("stdout_bytes", b""))
+                    + len(locals().get("stderr_bytes", b""))
+                ),
                 actual_runtime_seconds=time.monotonic() - t0,
                 spawned=True,
             )
-            _audit(db, engagement_id, actor, "sandbox_error", {
-                "reason": "capture_or_watchdog_failure",
-                "error_type": type(execution_error).__name__,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_error",
+                {
+                    "reason": "capture_or_watchdog_failure",
+                    "error_type": type(execution_error).__name__,
+                },
+            )
             raise
         finally:
             stop_watchdog.set()
@@ -1441,7 +1716,8 @@ def _run_sandbox_inner(
         budget_settlement_error = None
         try:
             settle_budget(
-                db, reservation_id,
+                db,
+                reservation_id,
                 actual_bytes=len(stdout_bytes) + len(stderr_bytes),
                 actual_runtime_seconds=time.monotonic() - t0,
                 spawned=True,
@@ -1459,39 +1735,55 @@ def _run_sandbox_inner(
                 proxy.stop()
             except Exception:
                 pass
-            _audit(db, engagement_id, actor, "sandbox_proxy_stopped", {
-                "approval_id": approval_id,
-                "proxy_port": proxy_port,
-            })
+            _audit(
+                db,
+                engagement_id,
+                actor,
+                "sandbox_proxy_stopped",
+                {
+                    "approval_id": approval_id,
+                    "proxy_port": proxy_port,
+                },
+            )
 
     if proxy_ca_dir is not None:
         import shutil as _sh
+
         _sh.rmtree(proxy_ca_dir, ignore_errors=True)
 
     duration = time.monotonic() - t0
 
     if revocation_reason[0] is not None:
-        _audit(db, engagement_id, actor, "sandbox_revoked", {
-            "reason": revocation_reason[0],
-            "approval_id": approval_id,
-            "namespace": namespace_name,
-            "budget_settlement_error": budget_settlement_error,
-        })
-        raise SandboxRevoked(
-            f"run revoked mid-execution: {revocation_reason[0]}"
+        _audit(
+            db,
+            engagement_id,
+            actor,
+            "sandbox_revoked",
+            {
+                "reason": revocation_reason[0],
+                "approval_id": approval_id,
+                "namespace": namespace_name,
+                "budget_settlement_error": budget_settlement_error,
+            },
         )
+        raise SandboxRevoked(f"run revoked mid-execution: {revocation_reason[0]}")
 
-    audit_seq = _audit(db, engagement_id, actor,
-                       "sandbox_timeout" if timed_out else "sandbox_ok", {
-        "approval_id": approval_id,
-        "manifest_id": manifest.id,
-        "manifest_hash": manifest.manifest_hash,
-        "namespace": namespace_name,
-        "resolved_ip": primary_ip,
-        "exit_code": proc.returncode,
-        "duration_seconds": round(duration, 3),
-        "argv": request.argv,
-    })
+    audit_seq = _audit(
+        db,
+        engagement_id,
+        actor,
+        "sandbox_timeout" if timed_out else "sandbox_ok",
+        {
+            "approval_id": approval_id,
+            "manifest_id": manifest.id,
+            "manifest_hash": manifest.manifest_hash,
+            "namespace": namespace_name,
+            "resolved_ip": primary_ip,
+            "exit_code": proc.returncode,
+            "duration_seconds": round(duration, 3),
+            "argv": request.argv,
+        },
+    )
 
     return SandboxResult(
         stdout=stdout_data,

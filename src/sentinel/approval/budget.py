@@ -6,13 +6,14 @@ and refuses operations that would exceed any ceiling. Called by
 SandboxRunner before every spawn (fail closed) and after every run
 (record actual usage).
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sentinel.storage.db import Database, coerce_db
+from sentinel.storage.db import Database
 
 
 class BudgetExhausted(Exception):
@@ -38,6 +39,7 @@ class Usage:
     conservative estimate, not measured -- over-counting is safe
     (budget exhausts sooner). See M6-04.
     """
+
     output_bytes_used: int
     estimated_network_probes: int
     runtime_used_seconds: float
@@ -77,8 +79,10 @@ def check_available(
         raise BudgetExhausted(f"approval {approval_id!r} not found")
     usage = _usage_row(db, approval_id)
 
-    if usage.estimated_network_probes + estimated_requests > \
-            appr["aggregate_request_budget"]:
+    if (
+        usage.estimated_network_probes + estimated_requests
+        > appr["aggregate_request_budget"]
+    ):
         raise BudgetExhausted(
             f"request budget exhausted: "
             f"{usage.estimated_network_probes}+{estimated_requests} > "
@@ -90,8 +94,10 @@ def check_available(
             f"{usage.output_bytes_used}+{estimated_bytes} > "
             f"{appr['aggregate_byte_budget']}"
         )
-    if usage.runtime_used_seconds + estimated_runtime_seconds > \
-            appr["aggregate_runtime_budget"]:
+    if (
+        usage.runtime_used_seconds + estimated_runtime_seconds
+        > appr["aggregate_runtime_budget"]
+    ):
         raise BudgetExhausted(
             f"runtime budget exhausted: "
             f"{usage.runtime_used_seconds:.1f}+{estimated_runtime_seconds:.1f} > "
@@ -128,8 +134,12 @@ def record_usage(
 
 
 def reserve_budget(
-    db: Database, approval_id: str, *, requests: int,
-    requested_bytes: int, runtime_seconds: float,
+    db: Database,
+    approval_id: str,
+    *,
+    requests: int,
+    requested_bytes: int,
+    runtime_seconds: float,
 ) -> tuple[str, int]:
     """Atomically reserve remaining limits; returns id and byte capture cap."""
     with db.transaction_immediate() as conn:
@@ -148,12 +158,19 @@ def reserve_budget(
             "FROM approval_budget_reservations WHERE approval_id=?",
             (approval_id,),
         ).fetchone()
-        requests_left = (appr["aggregate_request_budget"]
-                         - used.estimated_network_probes - pending["requests"])
-        bytes_left = (appr["aggregate_byte_budget"]
-                      - used.output_bytes_used - pending["bytes"])
-        runtime_left = (appr["aggregate_runtime_budget"]
-                        - used.runtime_used_seconds - pending["runtime"])
+        requests_left = (
+            appr["aggregate_request_budget"]
+            - used.estimated_network_probes
+            - pending["requests"]
+        )
+        bytes_left = (
+            appr["aggregate_byte_budget"] - used.output_bytes_used - pending["bytes"]
+        )
+        runtime_left = (
+            appr["aggregate_runtime_budget"]
+            - used.runtime_used_seconds
+            - pending["runtime"]
+        )
         if requests > requests_left:
             raise BudgetExhausted(
                 f"request budget exhausted: {requests} > {requests_left} remaining"
@@ -172,15 +189,25 @@ def reserve_budget(
             "INSERT INTO approval_budget_reservations "
             "(reservation_id,approval_id,requests_reserved,bytes_reserved,"
             "runtime_reserved_seconds,created_at_utc) VALUES (?,?,?,?,?,?)",
-            (reservation_id, approval_id, requests, capture_cap,
-             runtime_seconds, datetime.now(timezone.utc).isoformat()),
+            (
+                reservation_id,
+                approval_id,
+                requests,
+                capture_cap,
+                runtime_seconds,
+                datetime.now(timezone.utc).isoformat(),
+            ),
         )
         return reservation_id, capture_cap
 
 
 def settle_budget(
-    db: Database, reservation_id: str, *, actual_bytes: int,
-    actual_runtime_seconds: float, spawned: bool,
+    db: Database,
+    reservation_id: str,
+    *,
+    actual_bytes: int,
+    actual_runtime_seconds: float,
+    spawned: bool,
 ) -> None:
     """Reconcile a reservation with captured output and observed runtime."""
     with db.transaction_immediate() as conn:
@@ -203,10 +230,11 @@ def settle_budget(
             "estimated_network_probes=estimated_network_probes+excluded.estimated_network_probes, "
             "runtime_used_seconds=runtime_used_seconds+excluded.runtime_used_seconds, "
             "last_updated_utc=excluded.last_updated_utc",
-            (row["approval_id"],
-             max(0, min(actual_bytes, row["bytes_reserved"])),
-             row["requests_reserved"] if spawned else 0,
-             max(0.0, min(actual_runtime_seconds,
-                          row["runtime_reserved_seconds"])),
-             datetime.now(timezone.utc).isoformat()),
+            (
+                row["approval_id"],
+                max(0, min(actual_bytes, row["bytes_reserved"])),
+                row["requests_reserved"] if spawned else 0,
+                max(0.0, min(actual_runtime_seconds, row["runtime_reserved_seconds"])),
+                datetime.now(timezone.utc).isoformat(),
+            ),
         )

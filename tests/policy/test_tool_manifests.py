@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tool manifest registration and drift detection."""
+
 import pytest
 
 from sentinel.storage.db import Database
@@ -8,10 +9,12 @@ from sentinel.tools.manifests import ToolManifest, ManifestStore
 
 def _manifest(**overrides):
     base = dict(
-        tool_name="gitleaks", version="8.30.1",
+        tool_name="gitleaks",
+        version="8.30.1",
         executable_path="tools/gitleaks",
         executable_sha256="deadbeef" * 8,
-        execution_class=0, network_access=False,
+        execution_class=0,
+        network_access=False,
         allowed_profiles=("local_source_secret_scan",),
         prohibited=("scanning_cloned_remote_repos",),
         limits={"max_runtime_seconds": 300, "max_output_megabytes": 25},

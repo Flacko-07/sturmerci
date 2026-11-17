@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Deny-by-default scope matching. Gate 1 + Gate 2."""
+
 from __future__ import annotations
 
 from .canonicalizer import CanonicalURL

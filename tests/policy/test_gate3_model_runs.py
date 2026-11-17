@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 3: model call ledger (G3-T08)."""
+
 import pytest
 
 from sentinel.audit.model_runs import ModelRunStore

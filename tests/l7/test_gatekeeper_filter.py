@@ -1,25 +1,29 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gatekeeper filter tests (M7.2b)."""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import pytest
 
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.l7.gatekeeper_filter import (
-    make_gatekeeper_filter, path_matches_profile,
+    make_gatekeeper_filter,
+    path_matches_profile,
 )
-from sentinel.l7.proxy import ProxyDecision, ProxyRequest
+from sentinel.l7.proxy import ProxyRequest
 from sentinel.storage.db import Database
 
 
 # --- path_matches_profile (pure function) ---
+
 
 def test_profile_default_allows_any_path():
     assert path_matches_profile("/", "default")
@@ -62,8 +66,8 @@ def test_profile_non_slash_path_denied():
 
 # --- fixtures for filter tests ---
 
-def _build_env(tmp_path, *, method="GET", path_profile="default",
-               path_prefixes=None):
+
+def _build_env(tmp_path, *, method="GET", path_profile="default", path_prefixes=None):
     # Derive prefixes from the profile when it looks like a path.
     # Mirrors the migration 0005 backfill. Tests that need to exercise
     # "restricted with no prefixes" (config error) pass path_prefixes=[].
@@ -75,16 +79,21 @@ def _build_env(tmp_path, *, method="GET", path_profile="default",
     db = Database(tmp_path / "sentinel.sqlite3")
     eng_store = EngagementStore(db)
     eng = eng_store.create(
-        platform="lab", program_name="filter-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="filter-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     eng_store.transition(eng.id, "scope_review", "op")
     eng_store.transition(eng.id, "active", "op")
 
     asset_store = AssetStore(db)
     cid = asset_store.add_candidate(
-        engagement_id=eng.id, raw_value="probe.test",
-        canonical_value="probe.test", asset_type="hostname",
+        engagement_id=eng.id,
+        raw_value="probe.test",
+        canonical_value="probe.test",
+        asset_type="hostname",
         discovery_source="test",
     )
     asset_id = asset_store.promote_candidate(cid, approved_by="op")
@@ -128,12 +137,18 @@ def _build_env(tmp_path, *, method="GET", path_profile="default",
 
 def _req(method="GET", path="/", host="probe.test", port=443):
     return ProxyRequest(
-        method=method, path=path, http_version="HTTP/1.1",
-        host=host, port=port, headers=(), body=b"",
+        method=method,
+        path=path,
+        http_version="HTTP/1.1",
+        host=host,
+        port=port,
+        headers=(),
+        body=b"",
     )
 
 
 # --- filter tests ---
+
 
 def test_filter_allows_matching_method_and_path(tmp_path):
     db, appr_id = _build_env(tmp_path, method="GET", path_profile="default")
@@ -158,7 +173,9 @@ def test_filter_denies_wrong_method(tmp_path):
 
 def test_filter_denies_path_outside_profile(tmp_path):
     db, appr_id = _build_env(
-        tmp_path, method="GET", path_profile="/api/v1",
+        tmp_path,
+        method="GET",
+        path_profile="/api/v1",
         path_prefixes=["/api/v1"],
     )
     try:
@@ -233,14 +250,17 @@ def test_filter_methods_list(tmp_path):
 
 # --- M7.2c: path_matches_prefixes ---
 
+
 def test_prefixes_empty_denies():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/", []) is False
     assert path_matches_prefixes("/api", []) is False
 
 
 def test_prefixes_single_match():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/api/v1/users", ["/api"]) is True
     assert path_matches_prefixes("/api", ["/api"]) is True
     assert path_matches_prefixes("/admin", ["/api"]) is False
@@ -248,6 +268,7 @@ def test_prefixes_single_match():
 
 def test_prefixes_multiple_match():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     prefixes = ["/api/v1", "/health"]
     assert path_matches_prefixes("/api/v1/users", prefixes) is True
     assert path_matches_prefixes("/health", prefixes) is True
@@ -256,41 +277,50 @@ def test_prefixes_multiple_match():
 
 def test_prefixes_segment_boundary():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/api/v10", ["/api/v1"]) is False
     assert path_matches_prefixes("/apix", ["/api"]) is False
 
 
 def test_prefixes_query_string_stripped():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/api/v1/users?id=1", ["/api/v1"]) is True
     assert path_matches_prefixes("/admin?x=1", ["/api"]) is False
 
 
 def test_prefixes_root_allows_all():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/any/path", ["/"]) is True
 
 
 # --- M7.2c: filter uses prefixes in restricted mode ---
 
+
 def test_filter_restricted_mode_uses_prefixes(tmp_path):
     """Approval with profile='/api' + prefixes=['/api'] allows /api/*,
     denies /admin."""
     from sentinel.l7.gatekeeper_filter import make_gatekeeper_filter
-    from sentinel.l7.proxy import ProxyRequest, ProxyDecision
+    from sentinel.l7.proxy import ProxyRequest
 
     db = Database(tmp_path / "f.db")
     eng_store = EngagementStore(db)
     eng = eng_store.create(
-        platform="lab", program_name="p", policy_url=None,
-        actor="op", engagements_root=tmp_path / "e",
+        platform="lab",
+        program_name="p",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "e",
     )
     eng_store.transition(eng.id, "scope_review", "op")
     eng_store.transition(eng.id, "active", "op")
     asst = AssetStore(db)
     cid = asst.add_candidate(
-        engagement_id=eng.id, raw_value="probe.test",
-        canonical_value="probe.test", asset_type="hostname",
+        engagement_id=eng.id,
+        raw_value="probe.test",
+        canonical_value="probe.test",
+        asset_type="hostname",
         discovery_source="t",
     )
     aid = asst.promote_candidate(cid, approved_by="op")
@@ -300,32 +330,47 @@ def test_filter_restricted_mode_uses_prefixes(tmp_path):
         approval_id="appr_paths",
         engagement_id=eng.id,
         engagement_state_at_issue="active",
-        policy_snapshot_hash="p", scope_lock_hash="",
+        policy_snapshot_hash="p",
+        scope_lock_hash="",
         target_asset_ids=[aid],
         target_asset_ids_hash=target_asset_ids_hash([aid]),
         canonical_hostnames=["probe.test"],
-        allowed_ports=[443], allowed_protocols=["https"],
+        allowed_ports=[443],
+        allowed_protocols=["https"],
         allowed_http_methods=["GET"],
         allowed_path_profile="/api",
         allowed_path_prefixes=["/api"],
-        operation_profile_id="x", tool_name="httpx",
+        operation_profile_id="x",
+        tool_name="httpx",
         tool_version="1.6.10",
-        tool_executable_sha256="e"*64, adapter_code_sha256="a"*64,
-        manifest_hash=""*64, egress_profile_id="eg",
+        tool_executable_sha256="e" * 64,
+        adapter_code_sha256="a" * 64,
+        manifest_hash="" * 64,
+        egress_profile_id="eg",
         normalized_arguments_hash="args",
-        request_rate_budget=10, aggregate_request_budget=100,
-        aggregate_byte_budget=1_000_000, concurrency_budget=1,
-        aggregate_runtime_budget=60, aggregate_model_token_budget=10_000,
-        issued_by="op", issued_at_utc=now.isoformat(),
+        request_rate_budget=10,
+        aggregate_request_budget=100,
+        aggregate_byte_budget=1_000_000,
+        concurrency_budget=1,
+        aggregate_runtime_budget=60,
+        aggregate_model_token_budget=10_000,
+        issued_by="op",
+        issued_at_utc=now.isoformat(),
         expires_at_utc=(now + timedelta(hours=1)).isoformat(),
     )
     ApprovalStore(db).issue(appr)
 
     filt = make_gatekeeper_filter(db, "appr_paths", cache_ttl=0)
+
     def req(path):
         return ProxyRequest(
-            method="GET", path=path, http_version="HTTP/1.1",
-            host="probe.test", port=443, headers=(), body=b"",
+            method="GET",
+            path=path,
+            http_version="HTTP/1.1",
+            host="probe.test",
+            port=443,
+            headers=(),
+            body=b"",
         )
 
     assert filt(req("/api/v1/users")).allow is True
@@ -343,15 +388,20 @@ def test_filter_restricted_with_no_prefixes_denies_all(tmp_path):
     db = Database(tmp_path / "f.db")
     eng_store = EngagementStore(db)
     eng = eng_store.create(
-        platform="lab", program_name="p", policy_url=None,
-        actor="op", engagements_root=tmp_path / "e",
+        platform="lab",
+        program_name="p",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "e",
     )
     eng_store.transition(eng.id, "scope_review", "op")
     eng_store.transition(eng.id, "active", "op")
     asst = AssetStore(db)
     cid = asst.add_candidate(
-        engagement_id=eng.id, raw_value="x.test",
-        canonical_value="x.test", asset_type="hostname",
+        engagement_id=eng.id,
+        raw_value="x.test",
+        canonical_value="x.test",
+        asset_type="hostname",
         discovery_source="t",
     )
     aid = asst.promote_candidate(cid, approved_by="op")
@@ -361,33 +411,50 @@ def test_filter_restricted_with_no_prefixes_denies_all(tmp_path):
         approval_id="appr_no_prefixes",
         engagement_id=eng.id,
         engagement_state_at_issue="active",
-        policy_snapshot_hash="p", scope_lock_hash="",
+        policy_snapshot_hash="p",
+        scope_lock_hash="",
         target_asset_ids=[aid],
         target_asset_ids_hash=target_asset_ids_hash([aid]),
         canonical_hostnames=["x.test"],
-        allowed_ports=[443], allowed_protocols=["https"],
+        allowed_ports=[443],
+        allowed_protocols=["https"],
         allowed_http_methods=["GET"],
         allowed_path_profile="/api",
         allowed_path_prefixes=[],  # deliberately empty -> misconfig
-        operation_profile_id="x", tool_name="httpx",
+        operation_profile_id="x",
+        tool_name="httpx",
         tool_version="1.6.10",
-        tool_executable_sha256="e"*64, adapter_code_sha256="a"*64,
-        manifest_hash=""*64, egress_profile_id="eg",
+        tool_executable_sha256="e" * 64,
+        adapter_code_sha256="a" * 64,
+        manifest_hash="" * 64,
+        egress_profile_id="eg",
         normalized_arguments_hash="args",
-        request_rate_budget=10, aggregate_request_budget=100,
-        aggregate_byte_budget=1_000_000, concurrency_budget=1,
-        aggregate_runtime_budget=60, aggregate_model_token_budget=10_000,
-        issued_by="op", issued_at_utc=now.isoformat(),
+        request_rate_budget=10,
+        aggregate_request_budget=100,
+        aggregate_byte_budget=1_000_000,
+        concurrency_budget=1,
+        aggregate_runtime_budget=60,
+        aggregate_model_token_budget=10_000,
+        issued_by="op",
+        issued_at_utc=now.isoformat(),
         expires_at_utc=(now + timedelta(hours=1)).isoformat(),
     )
     ApprovalStore(db).issue(appr)
 
     filt = make_gatekeeper_filter(db, "appr_no_prefixes", cache_ttl=0)
     from sentinel.l7.proxy import ProxyRequest
-    d = filt(ProxyRequest(
-        method="GET", path="/any", http_version="HTTP/1.1",
-        host="x.test", port=443, headers=(), body=b"",
-    ))
+
+    d = filt(
+        ProxyRequest(
+            method="GET",
+            path="/any",
+            http_version="HTTP/1.1",
+            host="x.test",
+            port=443,
+            headers=(),
+            body=b"",
+        )
+    )
     assert d.allow is False
     assert "no_prefixes" in d.reason
     db.close()
@@ -395,25 +462,31 @@ def test_filter_restricted_with_no_prefixes_denies_all(tmp_path):
 
 # --- M7-P0-D: path canonicalization bypass closed ---
 
-@pytest.mark.parametrize("bypass", [
-    "/api/../admin",
-    "/api/%2e%2e/admin",
-    "/api/%2E%2E/admin",
-    "/api%2f..%2fadmin",
-    "/api\\..\\admin",
-    "/api/%252e%252e/admin",       # double-encoded
-    "/api/././../admin",
-    "//api/../admin",
-    "/api\x00/../admin",
-    "/api/..%2fadmin",
-])
+
+@pytest.mark.parametrize(
+    "bypass",
+    [
+        "/api/../admin",
+        "/api/%2e%2e/admin",
+        "/api/%2E%2E/admin",
+        "/api%2f..%2fadmin",
+        "/api\\..\\admin",
+        "/api/%252e%252e/admin",  # double-encoded
+        "/api/././../admin",
+        "//api/../admin",
+        "/api\x00/../admin",
+        "/api/..%2fadmin",
+    ],
+)
 def test_m7p0d_path_bypass_denied(bypass):
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes(bypass, ["/api"]) is False
 
 
 def test_m7p0d_valid_paths_still_match():
     from sentinel.l7.gatekeeper_filter import path_matches_prefixes
+
     assert path_matches_prefixes("/api", ["/api"]) is True
     assert path_matches_prefixes("/api/v1/users", ["/api"]) is True
     assert path_matches_prefixes("/api/admin?x=1", ["/api"]) is True
@@ -422,6 +495,7 @@ def test_m7p0d_valid_paths_still_match():
 
 
 # --- M7-06: expiry re-checked per request ---
+
 
 def test_m7p06_expired_approval_denied_per_request(tmp_path):
     """M7-06: the filter re-checks expiry on every request.

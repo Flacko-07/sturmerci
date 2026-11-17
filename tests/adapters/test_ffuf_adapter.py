@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """ffuf adapter integration test — hermetic, mocks run_in_sandbox."""
+
 from __future__ import annotations
 
 import hashlib
@@ -9,27 +10,33 @@ from unittest.mock import patch
 import pytest
 
 from sentinel.approval.store import (
-    ApprovalRecord, ApprovalStore, target_asset_ids_hash,
+    ApprovalRecord,
+    ApprovalStore,
+    target_asset_ids_hash,
 )
 from sentinel.assets.store import AssetStore
 from sentinel.engagement.store import EngagementStore
 from sentinel.adapters.ffuf import (
-    run_ffuf, parse_output, FfufAdapterError,
-    _resolve_wordlist, _count_wordlist, DEFAULT_BLOCKED_PATHS,
+    run_ffuf,
+    parse_output,
+    FfufAdapterError,
+    _resolve_wordlist,
+    _count_wordlist,
+    DEFAULT_BLOCKED_PATHS,
 )
 from sentinel.runner.sandbox_runner import SandboxResult
 from sentinel.storage.db import Database
 from sentinel.tools.manifests import ManifestStore, ToolManifest
 
 
-FAKE_FFUF_OUTPUT = '''{
+FAKE_FFUF_OUTPUT = """{
   "config": {"url": "https://app.test/FUZZ"},
   "results": [
     {"url": "https://app.test/admin", "status": 200, "length": 1234, "content-type": "text/html"},
     {"url": "https://app.test/api/v1", "status": 200, "length": 567, "content-type": "application/json"},
     {"url": "https://app.test/nonexistent", "status": 404, "length": 0, "content-type": "text/html"}
   ]
-}'''
+}"""
 
 
 def _build_env(tmp_path, *, budget=500, rate=10):
@@ -42,16 +49,21 @@ def _build_env(tmp_path, *, budget=500, rate=10):
     db = Database(tmp_path / "sentinel.sqlite3")
     store = EngagementStore(db)
     eng = store.create(
-        platform="lab", program_name="ffuf-test", policy_url=None,
-        actor="op", engagements_root=tmp_path / "engagements",
+        platform="lab",
+        program_name="ffuf-test",
+        policy_url=None,
+        actor="op",
+        engagements_root=tmp_path / "engagements",
     )
     store.transition(eng.id, "scope_review", "op")
     store.transition(eng.id, "active", "op")
 
     astore = AssetStore(db)
     cid = astore.add_candidate(
-        engagement_id=eng.id, raw_value="app.test",
-        canonical_value="app.test", asset_type="hostname",
+        engagement_id=eng.id,
+        raw_value="app.test",
+        canonical_value="app.test",
+        asset_type="hostname",
         discovery_source="t",
     )
     aid = astore.promote_candidate(cid, approved_by="op")
@@ -59,26 +71,35 @@ def _build_env(tmp_path, *, budget=500, rate=10):
     # Fake manifest
     fake_binary = "/bin/true"
     h = hashlib.sha256(Path(fake_binary).read_bytes()).hexdigest()
-    ManifestStore(db).register(ToolManifest(
-        tool_name="ffuf", version="2.1.0",
-        executable_path=fake_binary, executable_sha256=h,
-        execution_class=2, network_access=True,
-        allowed_profiles=("dir_discovery",),
-        prohibited=("post", "auth", "body", "proxy"),
-        limits={"max_runtime_seconds": 60, "max_output_megabytes": 25},
-        output_format="json",
-    ), actor="test")
+    ManifestStore(db).register(
+        ToolManifest(
+            tool_name="ffuf",
+            version="2.1.0",
+            executable_path=fake_binary,
+            executable_sha256=h,
+            execution_class=2,
+            network_access=True,
+            allowed_profiles=("dir_discovery",),
+            prohibited=("post", "auth", "body", "proxy"),
+            limits={"max_runtime_seconds": 60, "max_output_megabytes": 25},
+            output_format="json",
+        ),
+        actor="test",
+    )
 
     from sentinel.runner.sandbox_runner import (
-        _current_scope_lock_hash, _current_egress_profile_id,
+        _current_scope_lock_hash,
+        _current_egress_profile_id,
         _current_adapter_code_sha256,
     )
+
     adapter_path = Path("src/sentinel/adapters/ffuf.py")
     scope = _current_scope_lock_hash(db, eng.id, "")
     egress = _current_egress_profile_id()
     adapter_hash = _current_adapter_code_sha256(adapter_path)
 
     from datetime import datetime, timedelta, timezone
+
     now = datetime.now(timezone.utc)
     appr = ApprovalRecord(
         approval_id="appr_ffuf",
@@ -94,10 +115,13 @@ def _build_env(tmp_path, *, budget=500, rate=10):
         allowed_http_methods=["GET"],
         allowed_path_profile="default",
         operation_profile_id="dir_discovery",
-        tool_name="ffuf", tool_version="2.1.0",
+        tool_name="ffuf",
+        tool_version="2.1.0",
         tool_executable_sha256=h,
         adapter_code_sha256=adapter_hash,
-        manifest_hash=ManifestStore(db).get_by_tool_version("ffuf", "2.1.0").manifest_hash,
+        manifest_hash=ManifestStore(db)
+        .get_by_tool_version("ffuf", "2.1.0")
+        .manifest_hash,
         egress_profile_id=egress,
         normalized_arguments_hash="",
         request_rate_budget=rate,
@@ -111,8 +135,12 @@ def _build_env(tmp_path, *, budget=500, rate=10):
         expires_at_utc=(now + timedelta(hours=1)).isoformat(),
     )
     ApprovalStore(db).issue(appr)
-    return {"db": db, "eng_id": eng.id, "approval_id": appr.approval_id,
-            "engagements_root": tmp_path / "engagements"}
+    return {
+        "db": db,
+        "eng_id": eng.id,
+        "approval_id": appr.approval_id,
+        "engagements_root": tmp_path / "engagements",
+    }
 
 
 def test_parse_output():
@@ -158,17 +186,24 @@ def test_blocked_paths_constant():
 def test_run_ffuf_mocked_happy_path(tmp_path):
     env = _build_env(tmp_path, budget=500)
     fake_sandbox = SandboxResult(
-        stdout=FAKE_FFUF_OUTPUT, stderr="", exit_code=0,
-        duration_seconds=0.5, namespace_name="sentinel-run-test",
-        resolved_ip="198.51.100.5", audit_event_seq=1,
-        used_providers=(), resolved_ips=("198.51.100.5",),
+        stdout=FAKE_FFUF_OUTPUT,
+        stderr="",
+        exit_code=0,
+        duration_seconds=0.5,
+        namespace_name="sentinel-run-test",
+        resolved_ip="198.51.100.5",
+        audit_event_seq=1,
+        used_providers=(),
+        resolved_ips=("198.51.100.5",),
     )
-    with patch("sentinel.adapters.ffuf.run_in_sandbox",
-               return_value=fake_sandbox):
+    with patch("sentinel.adapters.ffuf.run_in_sandbox", return_value=fake_sandbox):
         result = run_ffuf(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            target_hostname="app.test", port=443, scheme="https",
+            target_hostname="app.test",
+            port=443,
+            scheme="https",
             wordlist_name="common.txt",
             engagements_root=env["engagements_root"],
         )
@@ -183,9 +218,12 @@ def test_run_ffuf_budget_too_small(tmp_path):
     env = _build_env(tmp_path, budget=5)  # way too small for common.txt
     with pytest.raises(FfufAdapterError, match="aggregate_request_budget"):
         run_ffuf(
-            db=env["db"], engagement_id=env["eng_id"],
+            db=env["db"],
+            engagement_id=env["eng_id"],
             approval_id=env["approval_id"],
-            target_hostname="app.test", port=443, scheme="https",
+            target_hostname="app.test",
+            port=443,
+            scheme="https",
             wordlist_name="common.txt",
             engagements_root=env["engagements_root"],
         )

@@ -4,6 +4,7 @@
 Every message and details blob is redacted and then checked with the
 final barrier before write. Secrets never reach the operational_logs table.
 """
+
 from __future__ import annotations
 
 import json
@@ -23,7 +24,8 @@ class OpsLogger:
         self._db, self._owns_db = coerce_db(db)
 
     def log(
-        self, *,
+        self,
+        *,
         engagement_id: str,
         level: str,
         component: str,
@@ -50,9 +52,15 @@ class OpsLogger:
                 """INSERT INTO operational_logs
                    (id, engagement_id, timestamp_utc, level, component, message, details_json)
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (log_id, engagement_id,
-                 datetime.now(timezone.utc).isoformat(),
-                 level, component, sanitized_msg, sanitized_details_str),
+                (
+                    log_id,
+                    engagement_id,
+                    datetime.now(timezone.utc).isoformat(),
+                    level,
+                    component,
+                    sanitized_msg,
+                    sanitized_details_str,
+                ),
             )
         return log_id
 

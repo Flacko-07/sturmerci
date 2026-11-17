@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tests for adapters._helpers — binary digest + bounded capture."""
+
 from __future__ import annotations
 
 import hashlib
 import sys
-from pathlib import Path
 
 import pytest
 
 from sentinel.adapters._helpers import (
-    BinaryDigestError, CapturedOutput,
-    verify_binary_digest, run_captured, run_isolated_scanner,
+    BinaryDigestError,
+    CapturedOutput,
+    verify_binary_digest,
+    run_captured,
+    run_isolated_scanner,
     execution_status_for_capture,
 )
 
@@ -18,6 +21,7 @@ from sentinel.adapters._helpers import (
 # ====================================================================
 # verify_binary_digest
 # ====================================================================
+
 
 def test_verify_binary_digest_ok(tmp_path):
     f = tmp_path / "bin"
@@ -43,9 +47,14 @@ def test_verify_binary_digest_missing(tmp_path):
 # run_captured
 # ====================================================================
 
+
 def test_run_captured_happy_path():
     result = run_captured(
-        [sys.executable, "-c", "print('hello'); import sys; sys.stderr.write('err\\n')"],
+        [
+            sys.executable,
+            "-c",
+            "print('hello'); import sys; sys.stderr.write('err\\n')",
+        ],
         timeout_seconds=5,
     )
     assert isinstance(result, CapturedOutput)
@@ -72,14 +81,13 @@ def test_run_captured_timeout():
         timeout_seconds=0.5,
     )
     assert result.timed_out is True
-    assert result.returncode != 0   # killed -> SIGKILL typically shows as -9
+    assert result.returncode != 0  # killed -> SIGKILL typically shows as -9
 
 
 def test_run_captured_stdout_capped():
     # Emit 200 KB, cap at 1 KB
     result = run_captured(
-        [sys.executable, "-c",
-         "print('x' * 200_000)"],
+        [sys.executable, "-c", "print('x' * 200_000)"],
         timeout_seconds=5,
         max_stdout_bytes=1024,
     )
@@ -89,8 +97,7 @@ def test_run_captured_stdout_capped():
 
 def test_run_captured_stderr_capped():
     result = run_captured(
-        [sys.executable, "-c",
-         "import sys; sys.stderr.write('e' * 200_000)"],
+        [sys.executable, "-c", "import sys; sys.stderr.write('e' * 200_000)"],
         timeout_seconds=5,
         max_stderr_bytes=1024,
     )
@@ -102,20 +109,25 @@ def test_run_captured_rejects_zero_cap():
     with pytest.raises(ValueError, match="max_stdout_bytes"):
         run_captured(
             [sys.executable, "-c", "pass"],
-            timeout_seconds=1, max_stdout_bytes=0,
+            timeout_seconds=1,
+            max_stdout_bytes=0,
         )
     with pytest.raises(ValueError, match="max_stderr_bytes"):
         run_captured(
             [sys.executable, "-c", "pass"],
-            timeout_seconds=1, max_stderr_bytes=0,
+            timeout_seconds=1,
+            max_stderr_bytes=0,
         )
 
 
 def test_run_captured_env_isolated(tmp_path):
     # Verify a passed env replaces the parent env (no accidental inherit)
     result = run_captured(
-        [sys.executable, "-c",
-         "import os; print(os.environ.get('HELPER_TEST', 'MISSING'))"],
+        [
+            sys.executable,
+            "-c",
+            "import os; print(os.environ.get('HELPER_TEST', 'MISSING'))",
+        ],
         timeout_seconds=5,
         env={"HELPER_TEST": "yes", "PATH": "/usr/bin:/bin"},
     )
@@ -123,20 +135,23 @@ def test_run_captured_env_isolated(tmp_path):
 
 
 def test_class0_isolation_fails_closed_without_bwrap(tmp_path, monkeypatch):
-    monkeypatch.setattr("sentinel.adapters._helpers.shutil.which",
-                        lambda _command: None)
+    monkeypatch.setattr(
+        "sentinel.adapters._helpers.shutil.which", lambda _command: None
+    )
     source = tmp_path / "input"
     source.mkdir()
     with pytest.raises(RuntimeError, match="bubblewrap.*required"):
         run_isolated_scanner(
-            [sys.executable, "-c", "pass"], input_path=source,
+            [sys.executable, "-c", "pass"],
+            input_path=source,
             timeout_seconds=1,
         )
 
 
 def test_class0_isolation_rejects_symlinked_input(tmp_path, monkeypatch):
-    monkeypatch.setattr("sentinel.adapters._helpers.shutil.which",
-                        lambda _command: "/usr/bin/bwrap")
+    monkeypatch.setattr(
+        "sentinel.adapters._helpers.shutil.which", lambda _command: "/usr/bin/bwrap"
+    )
     source = tmp_path / "input"
     source.mkdir()
     target = tmp_path / "outside.txt"
@@ -144,7 +159,8 @@ def test_class0_isolation_rejects_symlinked_input(tmp_path, monkeypatch):
     (source / "linked.txt").symlink_to(target)
     with pytest.raises(RuntimeError, match="symlinks are refused"):
         run_isolated_scanner(
-            [sys.executable, "-c", "pass"], input_path=source,
+            [sys.executable, "-c", "pass"],
+            input_path=source,
             timeout_seconds=1,
         )
 

@@ -12,10 +12,10 @@ adapter reads it after subprocess and ingests as evidence.
 Provider allowlist: crtsh, otx, rapiddns. Each provider MUST be on the
 approval's approved_infrastructure_endpoints.
 """
+
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import uuid
@@ -158,7 +158,8 @@ def run_theharvester(
             raise TheHarvesterAdapterError(f"limit out of range: {limit!r}")
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            THEHARVESTER_TOOL_NAME, THEHARVESTER_VERSION,
+            THEHARVESTER_TOOL_NAME,
+            THEHARVESTER_VERSION,
         )
         if manifest is None:
             raise TheHarvesterAdapterError(
@@ -236,7 +237,8 @@ def run_theharvester(
         findings = parse_output(content.decode("utf-8", errors="replace"))
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"theharvester_{target_domain}.json",
             content_type="application/json",
@@ -244,7 +246,8 @@ def run_theharvester(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -254,7 +257,8 @@ def run_theharvester(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="theharvester_run",
             decision="ok" if result.exit_code in (0, 1) else "error",
             details={

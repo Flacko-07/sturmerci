@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """External audit anchor. Gate 5 (§12.1)."""
+
 from __future__ import annotations
 
 import json

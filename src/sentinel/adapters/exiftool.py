@@ -17,6 +17,7 @@ Constraints:
   - Only JSON output format is permitted (prohibited flags block
     -csv/-htmlFormat/-X/-php).
 """
+
 from __future__ import annotations
 
 import json
@@ -24,8 +25,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sentinel.adapters._helpers import (
-    BinaryDigestError, CapturedOutput, run_isolated_scanner, verify_binary_digest,
-    execution_status_for_capture, ingest_incomplete_capture,
+    BinaryDigestError,
+    run_isolated_scanner,
+    verify_binary_digest,
+    execution_status_for_capture,
+    ingest_incomplete_capture,
 )
 from sentinel.audit.store import AuditStore
 from sentinel.engagement.store import EngagementStore
@@ -35,7 +39,7 @@ from sentinel.tools.manifests import ManifestStore
 
 
 EXIFTOOL_TOOL_NAME = "exiftool"
-EXIFTOOL_VERSION = "13.00"      # updated by Block 1's registration run
+EXIFTOOL_VERSION = "13.00"  # updated by Block 1's registration run
 PROFILE = "metadata_extraction"
 
 # Fields whose presence in a file's metadata is worth flagging. Matched
@@ -45,16 +49,16 @@ PROFILE = "metadata_extraction"
 # The raw JSON (with values) goes to evidence; ingest_evidence redacts
 # known secret shapes, and the operator reads the full metadata there.
 SENSITIVE_FIELD_PREFIXES = (
-    "GPS",          # GPSLatitude, GPSLongitude, GPSAltitude, ...
+    "GPS",  # GPSLatitude, GPSLongitude, GPSAltitude, ...
     "Author",
     "Creator",
     "Artist",
     "Producer",
     "Comment",
-    "Software",     # file format + version -> target fingerprints
-    "XMP",          # arbitrary embedded XMP
-    "Thumbnail",    # embedded thumbnails can leak pre-edit content
-    "IPTC",         # press-agency metadata (by-line, credit, ...)
+    "Software",  # file format + version -> target fingerprints
+    "XMP",  # arbitrary embedded XMP
+    "Thumbnail",  # embedded thumbnails can leak pre-edit content
+    "IPTC",  # press-agency metadata (by-line, credit, ...)
     "UserComment",
     "OwnerName",
     "SerialNumber",
@@ -71,8 +75,8 @@ class ExifToolAdapterError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class ExifToolFinding:
-    file_path: str               # relative to engagement/<scan_subdir>/
-    file_type: str               # exiftool's FileType
+    file_path: str  # relative to engagement/<scan_subdir>/
+    file_type: str  # exiftool's FileType
     file_size: int
     sensitive_fields: list[str]  # names only, never values
 
@@ -122,19 +126,29 @@ def parse_output(stdout: str) -> list[ExifToolFinding]:
         except (TypeError, ValueError):
             file_size = 0
         sensitive = sorted(
-            k for k in entry.keys()
-            if k not in ("SourceFile", "FileType", "FileSize",
-                         "ExifToolVersion", "Directory", "FileName")
+            k
+            for k in entry.keys()
+            if k
+            not in (
+                "SourceFile",
+                "FileType",
+                "FileSize",
+                "ExifToolVersion",
+                "Directory",
+                "FileName",
+            )
             and _matches_sensitive(k)
         )
         if not sensitive:
             continue
-        out.append(ExifToolFinding(
-            file_path=src,
-            file_type=file_type,
-            file_size=file_size,
-            sensitive_fields=sensitive,
-        ))
+        out.append(
+            ExifToolFinding(
+                file_path=src,
+                file_type=file_type,
+                file_size=file_size,
+                sensitive_fields=sensitive,
+            )
+        )
     return out
 
 
@@ -163,16 +177,15 @@ def run_exiftool(
             )
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            EXIFTOOL_TOOL_NAME, EXIFTOOL_VERSION,
+            EXIFTOOL_TOOL_NAME,
+            EXIFTOOL_VERSION,
         )
         if manifest is None:
             raise ExifToolAdapterError(
                 f"no manifest for exiftool {EXIFTOOL_VERSION} — register first"
             )
         if manifest.manifest.network_access:
-            raise ExifToolAdapterError(
-                "exiftool manifest must be network_access=False"
-            )
+            raise ExifToolAdapterError("exiftool manifest must be network_access=False")
 
         try:
             verify_binary_digest(
@@ -194,29 +207,37 @@ def run_exiftool(
 
         argv = [
             manifest.manifest.executable_path,
-            "-json",       # structured output (prohibited_flags blocks csv/html/X/php)
-            "-G",          # group names -> prefix fields with group for parsing
-            "-n",          # numeric values (avoids "1/500 sec" style strings)
-            "-r",          # recursive
-            "-q",          # quiet (suppress warnings to stderr)
+            "-json",  # structured output (prohibited_flags blocks csv/html/X/php)
+            "-G",  # group names -> prefix fields with group for parsing
+            "-n",  # numeric values (avoids "1/500 sec" style strings)
+            "-r",  # recursive
+            "-q",  # quiet (suppress warnings to stderr)
             str(source),
         ]
 
         capture = run_isolated_scanner(
-            argv, input_path=source, timeout_seconds=timeout_seconds,
+            argv,
+            input_path=source,
+            timeout_seconds=timeout_seconds,
         )
         if capture.timed_out or capture.truncated_stdout or capture.truncated_stderr:
             evidence = ingest_incomplete_capture(
-                db_obj, engagements_root=engagements_root,
+                db_obj,
+                engagements_root=engagements_root,
                 engagement_id=engagement_id,
                 source_name=f"exiftool_{scan_subdir}_partial.txt",
-                actor=actor, capture=capture, event_type="exiftool_run",
+                actor=actor,
+                capture=capture,
+                event_type="exiftool_run",
             )
             findings = parse_output(capture.stdout)
             return ExifToolRunResult(
-                findings=findings, findings_count=len(findings),
-                files_scanned=0, evidence=evidence,
-                process_exit_code=capture.returncode, timed_out=capture.timed_out,
+                findings=findings,
+                findings_count=len(findings),
+                files_scanned=0,
+                evidence=evidence,
+                process_exit_code=capture.returncode,
+                timed_out=capture.timed_out,
                 truncated_stdout=capture.truncated_stdout,
                 truncated_stderr=capture.truncated_stderr,
                 execution_status=execution_status_for_capture(capture),
@@ -232,7 +253,8 @@ def run_exiftool(
             files_scanned = 0
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"exiftool_{scan_subdir}.json",
             content_type="application/json",
@@ -251,7 +273,8 @@ def run_exiftool(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="exiftool_run",
             decision="ok" if capture.returncode in (0, 1) else "error",
             details={

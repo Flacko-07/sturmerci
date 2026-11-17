@@ -14,11 +14,11 @@ Each test asserts BOTH:
      because the main netns couldn't route (rather than nft blocked) is
      distinguishable from a real bypass.
 """
+
 from __future__ import annotations
 
 import os
 import shutil
-import socket
 import subprocess
 import time
 from pathlib import Path
@@ -45,15 +45,21 @@ if not _have_tools():
     )
 
 
-def _run_in_ns(ns_name: str, argv: list[str], *, timeout: float = 8.0) -> subprocess.CompletedProcess:
+def _run_in_ns(
+    ns_name: str, argv: list[str], *, timeout: float = 8.0
+) -> subprocess.CompletedProcess:
     """Run argv inside the given namespace. Returns the completed process."""
     return subprocess.run(
         ["ip", "netns", "exec", ns_name, *argv],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
 
 
-def _child_connect(ns_name: str, ip: str, port: int, *, timeout: float = 5.0) -> subprocess.CompletedProcess:
+def _child_connect(
+    ns_name: str, ip: str, port: int, *, timeout: float = 5.0
+) -> subprocess.CompletedProcess:
     """Attempt a TCP connect from inside the namespace using child python."""
     script = (
         "import socket, sys\n"
@@ -82,6 +88,7 @@ def _counter(comment: str) -> int:
 # E-01 .. E-06: attempts from inside the namespace to reach unapproved
 # public destinations must fail, and the specific deny rule must fire.
 # ---------------------------------------------------------------------------
+
 
 def test_e01_direct_public_ip():
     """E-01: direct TCP to a public IP not in the approved set is blocked
@@ -124,8 +131,15 @@ def test_e04_curl_no_proxy():
     with run_namespace(approved=[], hostname_records={}) as ns:
         r = _run_in_ns(
             ns.ns_name,
-            ["curl", "--noproxy", "*", "--connect-timeout", "2",
-             "-sS", "http://1.1.1.1/"],
+            [
+                "curl",
+                "--noproxy",
+                "*",
+                "--connect-timeout",
+                "2",
+                "-sS",
+                "http://1.1.1.1/",
+            ],
             timeout=8.0,
         )
         assert r.returncode != 0, f"curl should fail: {r.stdout}"
@@ -136,11 +150,11 @@ def test_e05_grandchild_socket():
     """E-05: a grandchild process spawned by a child cannot open a socket."""
     script = (
         "import subprocess, sys\n"
-        "code = \"import socket,sys; s=socket.socket(); s.settimeout(2);\\n"
+        'code = "import socket,sys; s=socket.socket(); s.settimeout(2);\\n'
         "try: s.connect(('1.1.1.1',443)); sys.exit(0)\\n"
         "except Exception: sys.exit(1)\\n"
-        "finally: s.close()\"\n"
-        f"r = subprocess.run(['python3', '-c', code], capture_output=False)\n"
+        'finally: s.close()"\n'
+        "r = subprocess.run(['python3', '-c', code], capture_output=False)\n"
         "sys.exit(r.returncode)\n"
     )
     with run_namespace(approved=[], hostname_records={}) as ns:
@@ -165,7 +179,7 @@ def test_e06_hardcoded_resolver():
 
 WSL_GATEWAY = "172.18.48.1"
 DOCKER_GATEWAYS = ("172.17.0.1", "172.19.0.1", "172.20.0.1")
-DOCKER_BRIDGE = "172.17.0.2"   # a typical container address
+DOCKER_BRIDGE = "172.17.0.2"  # a typical container address
 
 
 def test_e07_wsl_gateway():
@@ -209,9 +223,13 @@ def test_e10_docker_bridge():
     state dependency.
     """
     import subprocess as _sp
+
     probe = _sp.run(
-        ["bash", "-c",
-         f"timeout 1 bash -c 'cat < /dev/tcp/{DOCKER_BRIDGE}/80' 2>/dev/null"],
+        [
+            "bash",
+            "-c",
+            f"timeout 1 bash -c 'cat < /dev/tcp/{DOCKER_BRIDGE}/80' 2>/dev/null",
+        ],
         capture_output=True,
     )
     if probe.returncode != 0:
@@ -226,6 +244,7 @@ def test_e10_docker_bridge():
         assert r.returncode != 0, f"bridge {DOCKER_BRIDGE} should be blocked"
         assert _counter("deny-172.16.0.0/12") > 0
 
+
 def test_e11_resolv_conf_untouched():
     """E-11: the main-netns /etc/resolv.conf is not modified by the run;
     the namespace uses its own bind-mounted copy."""
@@ -234,7 +253,8 @@ def test_e11_resolv_conf_untouched():
     before_content = main_resolv.read_text()
 
     with run_namespace(
-        approved=[], hostname_records={"probe.test": ["1.1.1.1"]},
+        approved=[],
+        hostname_records={"probe.test": ["1.1.1.1"]},
     ) as ns:
         # Inside the namespace, resolv.conf must be our per-run copy
         r = _run_in_ns(ns.ns_name, ["cat", "/etc/resolv.conf"])
@@ -244,13 +264,16 @@ def test_e11_resolv_conf_untouched():
     after_stat = main_resolv.stat()
     after_content = main_resolv.read_text()
     assert before_content == after_content, "main /etc/resolv.conf changed"
-    assert before_stat.st_mtime == after_stat.st_mtime, "main /etc/resolv.conf mtime changed"
+    assert before_stat.st_mtime == after_stat.st_mtime, (
+        "main /etc/resolv.conf mtime changed"
+    )
 
 
 # ---------------------------------------------------------------------------
 # E-12 .. E-14: the approved path must remain reachable, and the DNS stub
 # must answer for approved hostnames. Guards against over-blocking.
 # ---------------------------------------------------------------------------
+
 
 def test_e12_approved_destination_allowed():
     """E-12: an approved external destination is matched by its allow rule
@@ -330,6 +353,7 @@ def test_e14_loopback_inside_namespace():
 # E-15 .. E-17: hardening tests added by M4.1
 # ---------------------------------------------------------------------------
 
+
 def test_e15_ipv6_denial():
     """E-15: the namespace cannot reach any IPv6 destination.
 
@@ -364,6 +388,7 @@ def test_e15_ipv6_denial():
 def test_e16_protected_ip_cannot_be_approved():
     """E-16: approving an IP inside DENIED_RANGES raises ValueError."""
     from sentinel.netns import nft
+
     for protected in ("127.0.0.1", "169.254.169.254", "10.1.2.3", "172.18.48.1"):
         with pytest.raises(ValueError, match="protected range"):
             nft.add_approved(protected, 443, comment="should-fail")
@@ -386,9 +411,7 @@ def test_e17_dns_only_resolves_exact_hostname():
         assert "203.0.113.42" in r.stdout
         # Subdomain must NOT resolve
         r = _run_in_ns(ns.ns_name, ["getent", "hosts", "sub.probe.test"])
-        assert r.returncode != 0, (
-            f"subdomain should NOT resolve, got: {r.stdout}"
-        )
+        assert r.returncode != 0, f"subdomain should NOT resolve, got: {r.stdout}"
         # Unrelated host must NOT resolve
         r = _run_in_ns(ns.ns_name, ["getent", "hosts", "other.test"])
         assert r.returncode != 0
@@ -398,11 +421,12 @@ def test_e17_dns_only_resolves_exact_hostname():
 # E-18, E-21: hardening — concurrency and process cleanup
 # ---------------------------------------------------------------------------
 
+
 def test_e18_concurrent_namespace_refused():
     """E-18: a second run_namespace while one is active raises LockHeldError."""
     from sentinel.netns.lock import LockHeldError
 
-    with run_namespace(approved=[], hostname_records={}) as ns1:
+    with run_namespace(approved=[], hostname_records={}):
         # Same process attempts to open a second one
         with pytest.raises(LockHeldError):
             with run_namespace(approved=[], hostname_records={}):
@@ -418,6 +442,7 @@ def test_e21_namespace_processes_killed_on_exit():
     leave orphan processes in a zombie-free state.
     """
     import tempfile
+
     tmpdir = Path(tempfile.mkdtemp(prefix="sentinel-e21-"))
     pid_file = tmpdir / "pid"
 
@@ -425,7 +450,7 @@ def test_e21_namespace_processes_killed_on_exit():
     launcher: subprocess.Popen | None = None
 
     try:
-        with run_namespace(approved=[], hostname_records={}) as ns:
+        with run_namespace(approved=[], hostname_records={}):
             script = (
                 "import os, subprocess, time\n"
                 "p = subprocess.Popen(['sleep', '60'])\n"
@@ -434,7 +459,8 @@ def test_e21_namespace_processes_killed_on_exit():
             )
             launcher = subprocess.Popen(
                 ["ip", "netns", "exec", ns.ns_name, "python3", "-c", script],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
 
             deadline = time.monotonic() + 3.0
@@ -466,12 +492,14 @@ def test_e21_namespace_processes_killed_on_exit():
         except OSError:
             pass
         import shutil as _sh
+
         _sh.rmtree(tmpdir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
 # E-20: sysctl restoration after success and failure
 # ---------------------------------------------------------------------------
+
 
 def _sysctl_value(name: str) -> str:
     r = subprocess.run(["sysctl", "-n", name], capture_output=True, text=True)
@@ -501,9 +529,7 @@ def test_e20a_sysctls_applied_and_restored_after_success():
         assert _sysctl_value(f"net.ipv4.conf.{ns.veth_main}.accept_local") == "1"
 
     post = {n: _sysctl_value(n) for n in names}
-    assert post == pre, (
-        f"sysctls not restored after success. pre={pre!r} post={post!r}"
-    )
+    assert post == pre, f"sysctls not restored after success. pre={pre!r} post={post!r}"
 
 
 def test_e20b_sysctls_restored_after_exception():

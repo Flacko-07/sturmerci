@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Derive a KB search query from an artifact's metadata + content."""
+
 from __future__ import annotations
 
 import re

@@ -7,6 +7,7 @@ treated as DENY by the caller. This module does not decide scope; it
 produces a normalized (hostname, scheme, port, path) tuple that the
 matcher can compare against canonical scope entries.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

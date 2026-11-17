@@ -18,6 +18,7 @@ Design decisions:
   - /usr/bin/sqlmap is a Python wrapper. The manifest hashes the wrapper;
     apt upgrade invalidates the approval (correct behavior).
 """
+
 from __future__ import annotations
 
 import re
@@ -80,11 +81,13 @@ def parse_log(log_text: str) -> list[SqlmapFinding]:
     for line in log_text.splitlines():
         m = _INJECTABLE_RE.search(line)
         if m:
-            out.append(SqlmapFinding(
-                method=m.group(1).strip(),
-                parameter=m.group(2).strip(),
-                technique=m.group(3).strip(),
-            ))
+            out.append(
+                SqlmapFinding(
+                    method=m.group(1).strip(),
+                    parameter=m.group(2).strip(),
+                    technique=m.group(3).strip(),
+                )
+            )
     return out
 
 
@@ -119,16 +122,15 @@ def run_sqlmap(
             raise SqlmapAdapterError(f"approval {approval_id!r} revoked")
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            SQLMAP_TOOL_NAME, SQLMAP_VERSION,
+            SQLMAP_TOOL_NAME,
+            SQLMAP_VERSION,
         )
         if manifest is None:
             raise SqlmapAdapterError(
                 f"no manifest for sqlmap {SQLMAP_VERSION} — register first"
             )
         if not manifest.manifest.network_access:
-            raise SqlmapAdapterError(
-                "sqlmap manifest must be network_access=True"
-            )
+            raise SqlmapAdapterError("sqlmap manifest must be network_access=True")
 
         # Create the output dir with world-writable permissions so
         # `nobody` (sandbox uid) can write into it, but `nflacko`
@@ -194,7 +196,8 @@ def run_sqlmap(
         clean = is_clean_run(log_text)
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"sqlmap_{target_hostname}_{port}.log",
             content_type="text/plain",
@@ -202,7 +205,8 @@ def run_sqlmap(
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -212,7 +216,8 @@ def run_sqlmap(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="sqlmap_run",
             decision="ok" if result.exit_code == 0 else "error",
             details={

@@ -5,13 +5,13 @@ Each event stores prev_hash and event_hash. The chain catches deletion or
 modification of any row, provided the head is externally anchored (see
 anchor.py). It is not inherently tamper-proof; see ECR §12.1.
 """
+
 from __future__ import annotations
 
 from sentinel.storage.db import Database, coerce_db
 
 import hashlib
 import json
-import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,12 +38,18 @@ def _canonical_json(d: dict) -> str:
 
 
 def _compute_hash(seq, ts, eng, actor, etype, decision, details, prev) -> str:
-    payload = _canonical_json({
-        "seq": seq, "ts": ts, "engagement_id": eng,
-        "actor": actor, "event_type": etype,
-        "decision": decision, "details": details,
-        "prev_hash": prev,
-    })
+    payload = _canonical_json(
+        {
+            "seq": seq,
+            "ts": ts,
+            "engagement_id": eng,
+            "actor": actor,
+            "event_type": etype,
+            "decision": decision,
+            "details": details,
+            "prev_hash": prev,
+        }
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -61,9 +67,13 @@ class AuditStore:
         return row[0], row[1]
 
     def append(
-        self, *,
-        engagement_id: str, actor: str, event_type: str,
-        decision: str, details: dict | None = None,
+        self,
+        *,
+        engagement_id: str,
+        actor: str,
+        event_type: str,
+        decision: str,
+        details: dict | None = None,
     ) -> AuditEvent:
         details = details or {}
         # (v3 hardening) BEGIN IMMEDIATE serializes the read-then-write
@@ -77,19 +87,43 @@ class AuditStore:
             seq = last_seq + 1
             ts = datetime.now(timezone.utc).isoformat()
             ev_hash = _compute_hash(
-                seq, ts, engagement_id, actor, event_type, decision,
-                details, prev_hash,
+                seq,
+                ts,
+                engagement_id,
+                actor,
+                event_type,
+                decision,
+                details,
+                prev_hash,
             )
             conn.execute(
                 """INSERT INTO audit_events
                    (seq, timestamp_utc, engagement_id, actor, event_type,
                     decision, details_json, prev_hash, event_hash)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (seq, ts, engagement_id, actor, event_type, decision,
-                 _canonical_json(details), prev_hash, ev_hash),
+                (
+                    seq,
+                    ts,
+                    engagement_id,
+                    actor,
+                    event_type,
+                    decision,
+                    _canonical_json(details),
+                    prev_hash,
+                    ev_hash,
+                ),
             )
-        return AuditEvent(seq, ts, engagement_id, actor, event_type,
-                          decision, details, prev_hash, ev_hash)
+        return AuditEvent(
+            seq,
+            ts,
+            engagement_id,
+            actor,
+            event_type,
+            decision,
+            details,
+            prev_hash,
+            ev_hash,
+        )
 
     def verify_chain(self) -> tuple[bool, int | None, str]:
         cur = self._db.connection.execute(
@@ -105,8 +139,12 @@ class AuditStore:
                 return False, seq, f"sequence gap: expected {expected_seq}, got {seq}"
             if prev != expected_prev:
                 return False, seq, f"prev_hash mismatch at seq {seq}"
-            if _compute_hash(seq, ts, eng, actor, etype, decision,
-                             json.loads(dj), prev) != eh:
+            if (
+                _compute_hash(
+                    seq, ts, eng, actor, etype, decision, json.loads(dj), prev
+                )
+                != eh
+            ):
                 return False, seq, f"event_hash mismatch at seq {seq}"
             expected_prev = eh
             expected_seq += 1

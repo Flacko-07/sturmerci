@@ -5,6 +5,7 @@ The persistent tool manifest is authoritative for executable identity,
 integrity, and execution policy. This registry is descriptive only; it does
 not authorize or launch an adapter.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class AdapterManifest:
     name: str
-    execution_class: int          # 0..3; see ECR §5.2
+    execution_class: int  # 0..3; see ECR §5.2
     network_access: bool
     enabled: bool = True
 

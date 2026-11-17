@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Gate 2: approval TTL denials."""
+
 import pytest
 
 from sentinel.approval.engine import calculate_approval_ttl

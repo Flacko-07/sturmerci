@@ -10,6 +10,7 @@ to enforce flag policy.
 
 See docs/runner-profiles-design.md for the full rationale.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -32,6 +33,7 @@ class OperationProfile:
     prohibited_flags:    token substrings that must not appear in argv
                          (runner-enforced, independent of adapter)
     """
+
     name: str
     builder: Callable[[str, dict[str, Any]], list[str]]
     required_params: frozenset[str]
@@ -111,8 +113,7 @@ def get_profile(name: str) -> OperationProfile:
     profile = _REGISTRY.get(name)
     if profile is None:
         raise ProfileError(
-            f"unknown operation profile {name!r}. "
-            f"Registered: {sorted(_REGISTRY)}"
+            f"unknown operation profile {name!r}. Registered: {sorted(_REGISTRY)}"
         )
     return profile
 
@@ -138,16 +139,13 @@ def build_argv_for_profile(
     missing = profile.required_params - set(params)
     if missing:
         raise ProfileError(
-            f"profile {profile_name!r} missing required params: "
-            f"{sorted(missing)}"
+            f"profile {profile_name!r} missing required params: {sorted(missing)}"
         )
 
     try:
         argv = profile.builder(executable_path, params)
     except Exception as e:
-        raise ProfileError(
-            f"profile {profile_name!r} builder raised: {e}"
-        ) from e
+        raise ProfileError(f"profile {profile_name!r} builder raised: {e}") from e
 
     if not argv:
         raise ProfileError(f"profile {profile_name!r} builder returned empty argv")

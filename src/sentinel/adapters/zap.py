@@ -13,9 +13,9 @@ cwd, and report paths. ACL grants `nobody` write; shutil.rmtree in
 finally so `nflacko` can clean up. JAVA_HOME is explicitly set because
 the minimal-env allowlist doesn't include it.
 """
+
 from __future__ import annotations
 
-import os
 import shutil
 import uuid
 from dataclasses import dataclass
@@ -39,8 +39,13 @@ PROFILE = "baseline_scan"
 ZAP_JAVA_HOME = "/usr/lib/jvm/java-17-openjdk-amd64"
 
 _RISK = {"0": "info", "1": "low", "2": "medium", "3": "high"}
-_CONF = {"0": "false_positive", "1": "low", "2": "medium",
-         "3": "high", "4": "confirmed"}
+_CONF = {
+    "0": "false_positive",
+    "1": "low",
+    "2": "medium",
+    "3": "high",
+    "4": "confirmed",
+}
 
 
 class ZapAdapterError(ValueError):
@@ -89,15 +94,17 @@ def parse_report(xml_text: str) -> list[ZapFinding]:
             url = ""
             if instances:
                 url = (instances[0].findtext("uri") or "").strip()
-            out.append(ZapFinding(
-                plugin_id=plugin_id[:20],
-                name=name[:300],
-                risk=_RISK.get(risk_code, "info"),
-                confidence=_CONF.get(conf_code, "medium"),
-                url=url[:500],
-                cwe_id=cwe_id[:20],
-                instance_count=len(instances),
-            ))
+            out.append(
+                ZapFinding(
+                    plugin_id=plugin_id[:20],
+                    name=name[:300],
+                    risk=_RISK.get(risk_code, "info"),
+                    confidence=_CONF.get(conf_code, "medium"),
+                    url=url[:500],
+                    cwe_id=cwe_id[:20],
+                    instance_count=len(instances),
+                )
+            )
     return out
 
 
@@ -127,12 +134,11 @@ def run_zap_baseline(
             raise ZapAdapterError(f"approval {approval_id!r} revoked")
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            ZAP_TOOL_NAME, ZAP_VERSION,
+            ZAP_TOOL_NAME,
+            ZAP_VERSION,
         )
         if manifest is None:
-            raise ZapAdapterError(
-                f"no manifest for zap {ZAP_VERSION} — register first"
-            )
+            raise ZapAdapterError(f"no manifest for zap {ZAP_VERSION} — register first")
         if not manifest.manifest.network_access:
             raise ZapAdapterError("zap manifest must be network_access=True")
 
@@ -156,8 +162,11 @@ def run_zap_baseline(
         )
 
         request = SandboxRequest(
-            hostname=target_hostname, port=port, protocol=scheme,
-            method="GET", path="/",
+            hostname=target_hostname,
+            port=port,
+            protocol=scheme,
+            method="GET",
+            path="/",
             argv=argv,
             timeout_seconds=timeout_seconds,
             additional_ports=(),
@@ -189,24 +198,26 @@ def run_zap_baseline(
         report_text = ""
         if report_xml.is_file():
             try:
-                report_text = report_xml.read_text(
-                    encoding="utf-8", errors="replace"
-                )
+                report_text = report_xml.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 report_text = ""
 
         findings = parse_report(report_text)
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"zap_{target_hostname}_{port}.xml",
             content_type="application/xml",
-            content=(report_text or "<?xml version='1.0'?><no-report/>").encode("utf-8"),
+            content=(report_text or "<?xml version='1.0'?><no-report/>").encode(
+                "utf-8"
+            ),
             actor=actor,
             truncated_output=result.truncated_stdout or result.truncated_stderr,
             execution_status=result.execution_status,
-            stdout_bytes=result.stdout_bytes, stderr_bytes=result.stderr_bytes,
+            stdout_bytes=result.stdout_bytes,
+            stderr_bytes=result.stderr_bytes,
             output_limit_bytes=result.output_limit_bytes,
             stdout_truncated=result.truncated_stdout,
             stderr_truncated=result.truncated_stderr,
@@ -216,7 +227,8 @@ def run_zap_baseline(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="zap_run",
             decision="ok" if result.exit_code in (0, 1) else "error",
             details={

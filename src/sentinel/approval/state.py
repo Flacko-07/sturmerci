@@ -8,6 +8,7 @@ re-check the same state on every request without importing the runner
 All three functions are read-only and safe to call from any thread that
 owns a Database connection.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -17,8 +18,9 @@ from sentinel.storage.db import Database
 from sentinel.tools.manifests import ManifestStore
 
 
-def current_scope_lock_hash(db: Database, engagement_id: str,
-                             fallback: str = "") -> str:
+def current_scope_lock_hash(
+    db: Database, engagement_id: str, fallback: str = ""
+) -> str:
     """SHA-256 of the current approved_assets set for an engagement.
 
     Same value sandbox_runner computes at run start. If an asset is
@@ -36,8 +38,7 @@ def current_scope_lock_hash(db: Database, engagement_id: str,
     ).hexdigest()
 
 
-def current_policy_hash(db: Database, engagement_id: str,
-                        fallback: str = "") -> str:
+def current_policy_hash(db: Database, engagement_id: str, fallback: str = "") -> str:
     """Latest policy_snapshots.policy_hash for the engagement, or fallback."""
     row = db.connection.execute(
         "SELECT policy_hash FROM policy_snapshots "
@@ -48,8 +49,7 @@ def current_policy_hash(db: Database, engagement_id: str,
     return row["policy_hash"] if row else fallback
 
 
-def current_manifest_hash(db: Database, tool_name: str,
-                          version: str) -> str | None:
+def current_manifest_hash(db: Database, tool_name: str, version: str) -> str | None:
     """Registered manifest_hash for (tool, version), or None if absent."""
     reg = ManifestStore(db).get_by_tool_version(tool_name, version)
     return reg.manifest_hash if reg else None

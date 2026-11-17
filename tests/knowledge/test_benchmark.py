@@ -10,6 +10,7 @@ with more curation, the threshold should rise.
 Run against `knowledge/` in the repo. Does not depend on any
 external data.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -47,10 +48,8 @@ BENCHMARK: list[tuple[str, list[str]]] = [
     ("WSTG overview methodology", ["Web Security Testing Guide"]),
     ("NIST SP 800-115 phases", ["NIST SP 800-115"]),
     ("PTES penetration testing standard", ["PTES"]),
-    ("passive reconnaissance certificate transparency",
-     ["Passive Reconnaissance"]),
-    ("API rate limiting resource consumption",
-     ["Rate-Limiting", "Rate Limiting"]),
+    ("passive reconnaissance certificate transparency", ["Passive Reconnaissance"]),
+    ("API rate limiting resource consumption", ["Rate-Limiting", "Rate Limiting"]),
     ("mass assignment autobinding", ["Mass Assignment"]),
     ("JWT authentication weaknesses", ["Authentication"]),
 ]
@@ -73,8 +72,11 @@ def kb_db(tmp_path):
     ).fetchall()
     for entry in entries:
         review_revision(
-            db, entry["id"], reviewer="benchmark-reviewer",
-            decision="approved", rationale="benchmark fixture review",
+            db,
+            entry["id"],
+            reviewer="benchmark-reviewer",
+            decision="approved",
+            rationale="benchmark fixture review",
         )
     yield db
     db.close()
@@ -110,13 +112,9 @@ def test_benchmark_query_finds_expected_doc(query, expected):
     if not hits:
         pytest.fail(f"query {query!r} returned no hits")
     titles = [h.title for h in hits]
-    matched = any(
-        exp.lower() in t.lower()
-        for t in titles for exp in expected
-    )
+    matched = any(exp.lower() in t.lower() for t in titles for exp in expected)
     assert matched, (
-        f"query {query!r} did not find expected {expected} in top 3. "
-        f"Got: {titles}"
+        f"query {query!r} did not find expected {expected} in top 3. Got: {titles}"
     )
 
 
@@ -133,7 +131,7 @@ def test_benchmark_mean_reciprocal_rank():
     mrr = sum(scores) / len(scores)
     assert mrr >= 0.5, (
         f"MRR {mrr:.3f} below 0.5 threshold. "
-        f"Per-query: {list(zip([q for q,_ in BENCHMARK], scores))}"
+        f"Per-query: {list(zip([q for q, _ in BENCHMARK], scores))}"
     )
 
 
@@ -169,13 +167,9 @@ def test_benchmark_new_domain_query(query, expected):
     if not hits:
         pytest.fail(f"query {query!r} returned no hits")
     titles = [h.title for h in hits]
-    matched = any(
-        exp.lower() in t.lower()
-        for t in titles for exp in expected
-    )
+    matched = any(exp.lower() in t.lower() for t in titles for exp in expected)
     assert matched, (
-        f"query {query!r} did not find expected {expected} in top 3. "
-        f"Got: {titles}"
+        f"query {query!r} did not find expected {expected} in top 3. Got: {titles}"
     )
 
 

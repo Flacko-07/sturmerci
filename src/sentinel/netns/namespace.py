@@ -11,6 +11,7 @@ the run veth. On exit, the namespace is deleted, which tears down the
 veth, dnsmasq, and any process still inside. Idempotent on exception
 and on kill-switch.
 """
+
 from __future__ import annotations
 
 import os
@@ -48,13 +49,10 @@ def _ip(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     bin_ = shutil.which("ip")
     if bin_ is None:
         raise NamespaceError("ip binary not found on PATH")
-    result = subprocess.run(
-        [bin_, *args], shell=False, capture_output=True, text=True
-    )
+    result = subprocess.run([bin_, *args], shell=False, capture_output=True, text=True)
     if check and result.returncode != 0:
         raise NamespaceError(
-            f"ip {' '.join(args)} failed ({result.returncode}): "
-            f"{result.stderr.strip()}"
+            f"ip {' '.join(args)} failed ({result.returncode}): {result.stderr.strip()}"
         )
     return result
 
@@ -166,7 +164,8 @@ def _get_sysctl(name: str) -> str:
 def _set_sysctl(name: str, value: str) -> None:
     subprocess.run(
         ["sysctl", "-w", f"{name}={value}"],
-        capture_output=True, check=True,
+        capture_output=True,
+        check=True,
     )
 
 
@@ -219,12 +218,30 @@ def run_namespace(
             _ip("link", "set", veth_ns, "netns", ns_name)
             _ip("addr", "add", f"{main_ip}/30", "dev", veth_main)
             _ip("link", "set", veth_main, "up")
-            _ip("netns", "exec", ns_name, "ip", "addr", "add", f"{ns_ip}/30",
-                "dev", veth_ns)
+            _ip(
+                "netns",
+                "exec",
+                ns_name,
+                "ip",
+                "addr",
+                "add",
+                f"{ns_ip}/30",
+                "dev",
+                veth_ns,
+            )
             _ip("netns", "exec", ns_name, "ip", "link", "set", veth_ns, "up")
             _ip("netns", "exec", ns_name, "ip", "link", "set", "lo", "up")
-            _ip("netns", "exec", ns_name, "ip", "route", "add", "default",
-                "via", main_ip)
+            _ip(
+                "netns",
+                "exec",
+                ns_name,
+                "ip",
+                "route",
+                "add",
+                "default",
+                "via",
+                main_ip,
+            )
 
             resolv_dir.mkdir(parents=True, exist_ok=True)
             try:
@@ -254,7 +271,10 @@ def run_namespace(
                     ip_, port, proto = entry
                 suffix = "" if proto == "tcp" else f"-{proto}"
                 nft.add_approved(
-                    ip_, port, protocol=proto, veth=veth_main,
+                    ip_,
+                    port,
+                    protocol=proto,
+                    veth=veth_main,
                     comment=f"allow-{ip_}-{port}{suffix}",
                 )
             nft.add_default_denies(veth=veth_main)
@@ -295,7 +315,7 @@ def run_namespace(
                 run_id=run_id,
                 hostname_records=hostname_records,
                 start_timeout=start_timeout,
-            ) as dns:
+            ):
                 yield handle
         finally:
             # (v3 hardening) Restore sysctls in the OUTER finally — NOT
@@ -315,15 +335,12 @@ def run_namespace(
             #   - operator sees an unmistakable warning if any restore
             #     failed, so they know to check host state manually
             import sys as _sys
+
             _sysctl_restores = [
-                (f"net.ipv4.conf.{veth_main}.accept_local",
-                 orig_al_veth, "1"),
-                ("net.ipv4.conf.all.accept_local",
-                 orig_al_all, "1"),
-                (f"net.ipv4.conf.{veth_main}.rp_filter",
-                 orig_rp_veth, "0"),
-                ("net.ipv4.conf.all.rp_filter",
-                 orig_rp_all, "0"),
+                (f"net.ipv4.conf.{veth_main}.accept_local", orig_al_veth, "1"),
+                ("net.ipv4.conf.all.accept_local", orig_al_all, "1"),
+                (f"net.ipv4.conf.{veth_main}.rp_filter", orig_rp_veth, "0"),
+                ("net.ipv4.conf.all.rp_filter", orig_rp_all, "0"),
                 ("net.ipv4.ip_forward", orig_fwd, "1"),
             ]
             _sysctl_failures: list[str] = []
@@ -341,23 +358,24 @@ def run_namespace(
                     "[sentinel-cleanup] WARNING: sysctl restore was "
                     "incomplete — some host settings may still be at "
                     "the modified values. Verify manually before the "
-                    "next run. Failed restores: "
-                    + "; ".join(_sysctl_failures),
-                    file=_sys.stderr, flush=True,
+                    "next run. Failed restores: " + "; ".join(_sysctl_failures),
+                    file=_sys.stderr,
+                    flush=True,
                 )
-            _ip("route", "delete", f"{ns_ip}/32",
-                "dev", veth_main, check=False)
+            _ip("route", "delete", f"{ns_ip}/32", "dev", veth_main, check=False)
             # Kill processes still bound to the namespace BEFORE deleting
             # it. ip netns delete removes the device but not the processes
             # using it.
             remaining = _kill_namespace_processes(ns_name)
             if remaining:
                 import sys as _sys
+
                 print(
                     f"[sentinel-cleanup] WARNING: {len(remaining)} process(es) "
                     f"still alive in namespace {ns_name!r} after SIGKILL: "
                     f"{remaining}",
-                    file=_sys.stderr, flush=True,
+                    file=_sys.stderr,
+                    flush=True,
                 )
             _ip("netns", "delete", ns_name, check=False)
             _ip("link", "delete", veth_main, check=False)

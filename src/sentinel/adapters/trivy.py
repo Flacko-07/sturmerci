@@ -5,11 +5,10 @@ Uses --offline-scan and a cached vulnerability DB. Refuses to fetch
 the DB during a scan (that would be network activity in an adapter
 registered as Class 0).
 """
+
 from __future__ import annotations
 
 import json
-import subprocess
-import time
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,8 +19,11 @@ from sentinel.evidence.ingest import ingest_evidence, IngestResult
 from sentinel.storage.db import Database, coerce_db
 from sentinel.tools.manifests import ManifestStore
 from sentinel.adapters._helpers import (
-    BinaryDigestError, run_isolated_scanner, verify_binary_digest,
-    execution_status_for_capture, ingest_incomplete_capture,
+    BinaryDigestError,
+    run_isolated_scanner,
+    verify_binary_digest,
+    execution_status_for_capture,
+    ingest_incomplete_capture,
 )
 
 
@@ -30,8 +32,8 @@ TRIVY_VERSION = "0.57.1"
 PROFILE = "dependency_scan"
 
 FORBIDDEN_FLAGS = (
-    "--auto-refresh",     # downloads DB during run
-    "--download-db-only", # explicit DB download
+    "--auto-refresh",  # downloads DB during run
+    "--download-db-only",  # explicit DB download
     "--skip-db-update=false",  # would allow update
 )
 
@@ -62,6 +64,7 @@ class TrivyRunResult:
     truncated_stderr: bool = False
     execution_status: str = "COMPLETED"
 
+
 def parse_output(stdout: str) -> list[TrivyFinding]:
     if not stdout or not stdout.strip():
         return []
@@ -79,15 +82,17 @@ def parse_output(stdout: str) -> list[TrivyFinding]:
         for v in result.get("Vulnerabilities", []) or []:
             if not isinstance(v, dict):
                 continue
-            findings.append(TrivyFinding(
-                vuln_id=str(v.get("VulnerabilityID", "") or ""),
-                package_name=str(v.get("PkgName", "") or ""),
-                installed_version=str(v.get("InstalledVersion", "") or ""),
-                fixed_version=str(v.get("FixedVersion", "") or ""),
-                severity=str(v.get("Severity", "") or ""),
-                title=str(v.get("Title", "") or "")[:200],
-                target=target,
-            ))
+            findings.append(
+                TrivyFinding(
+                    vuln_id=str(v.get("VulnerabilityID", "") or ""),
+                    package_name=str(v.get("PkgName", "") or ""),
+                    installed_version=str(v.get("InstalledVersion", "") or ""),
+                    fixed_version=str(v.get("FixedVersion", "") or ""),
+                    severity=str(v.get("Severity", "") or ""),
+                    title=str(v.get("Title", "") or "")[:200],
+                    target=target,
+                )
+            )
     return findings
 
 
@@ -106,12 +111,11 @@ def run_trivy(
     try:
         eng = EngagementStore(db_obj).get(engagement_id)
         if eng is None or eng.state != "active":
-            raise TrivyAdapterError(
-                f"engagement {engagement_id!r} not active"
-            )
+            raise TrivyAdapterError(f"engagement {engagement_id!r} not active")
 
         manifest = ManifestStore(db_obj).get_by_tool_version(
-            TRIVY_TOOL_NAME, TRIVY_VERSION,
+            TRIVY_TOOL_NAME,
+            TRIVY_VERSION,
         )
         if manifest is None:
             raise TrivyAdapterError(
@@ -119,7 +123,6 @@ def run_trivy(
             )
         if manifest.manifest.network_access:
             raise TrivyAdapterError("trivy manifest must be network_access=False")
-
 
         try:
             verify_binary_digest(
@@ -138,45 +141,58 @@ def run_trivy(
         argv = [
             manifest.manifest.executable_path,
             "fs",
-            "--format", "json",
+            "--format",
+            "json",
             "--quiet",
-            "--scanners", "vuln",
+            "--scanners",
+            "vuln",
             "--skip-db-update",
             str(source),
         ]
         for token in argv:
             for forbidden in FORBIDDEN_FLAGS:
-                if token == forbidden or token.startswith(forbidden.split("=")[0] + "="):
+                if token == forbidden or token.startswith(
+                    forbidden.split("=")[0] + "="
+                ):
                     raise TrivyAdapterError(f"forbidden trivy flag: {token!r}")
 
-        cache_path = Path(os.environ.get(
-            "TRIVY_CACHE_DIR", str(Path.home() / ".cache" / "trivy")
-        )).resolve()
+        cache_path = Path(
+            os.environ.get("TRIVY_CACHE_DIR", str(Path.home() / ".cache" / "trivy"))
+        ).resolve()
         if not cache_path.is_dir():
             raise TrivyAdapterError(
                 "offline Trivy database cache is missing; provide a prepared "
                 "TRIVY_CACHE_DIR before running the isolated scanner"
             )
         capture = run_isolated_scanner(
-            argv, input_path=source, timeout_seconds=timeout_seconds,
+            argv,
+            input_path=source,
+            timeout_seconds=timeout_seconds,
             extra_readonly=(cache_path,),
             env_overrides={"TRIVY_CACHE_DIR": str(cache_path)},
         )
         if capture.timed_out or capture.truncated_stdout or capture.truncated_stderr:
             evidence = ingest_incomplete_capture(
-                db_obj, engagements_root=engagements_root,
+                db_obj,
+                engagements_root=engagements_root,
                 engagement_id=engagement_id,
                 source_name=f"trivy_{TRIVY_VERSION}_partial.txt",
-                actor=actor, capture=capture, event_type="trivy_run",
+                actor=actor,
+                capture=capture,
+                event_type="trivy_run",
             )
             findings = parse_output(capture.stdout)
             return TrivyRunResult(
-                findings=findings, findings_count=len(findings),
-                evidence=evidence, process_exit_code=capture.returncode,
-                timed_out=capture.timed_out, truncated_stdout=capture.truncated_stdout,
+                findings=findings,
+                findings_count=len(findings),
+                evidence=evidence,
+                process_exit_code=capture.returncode,
+                timed_out=capture.timed_out,
+                truncated_stdout=capture.truncated_stdout,
                 truncated_stderr=capture.truncated_stderr,
                 execution_status=execution_status_for_capture(
-                    capture, successful_exit_codes=(0, 1)),
+                    capture, successful_exit_codes=(0, 1)
+                ),
             )
         stdout = capture.stdout
 
@@ -198,6 +214,7 @@ def run_trivy(
             )
         try:
             import json as _json_strict
+
             _json_strict.loads(capture.stdout)
         except Exception as _je:
             raise TrivyAdapterError(
@@ -208,7 +225,8 @@ def run_trivy(
         findings = parse_output(stdout or "")
 
         evidence = ingest_evidence(
-            db_obj, engagements_root=engagements_root,
+            db_obj,
+            engagements_root=engagements_root,
             engagement_id=engagement_id,
             source_name=f"trivy_{TRIVY_VERSION}.json",
             content_type="application/json",
@@ -216,7 +234,8 @@ def run_trivy(
             actor=actor,
             truncated_output=capture.truncated_stdout or capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
             stdout_bytes=len(capture.stdout.encode("utf-8")),
             stderr_bytes=len(capture.stderr.encode("utf-8")),
             output_limit_bytes=5 * 1024 * 1024 + 1024 * 1024,
@@ -228,7 +247,8 @@ def run_trivy(
         )
 
         AuditStore(db_obj).append(
-            engagement_id=engagement_id, actor=actor,
+            engagement_id=engagement_id,
+            actor=actor,
             event_type="trivy_run",
             decision="ok" if capture.returncode in (0, 1) else "error",
             details={
@@ -242,14 +262,16 @@ def run_trivy(
         )
 
         return TrivyRunResult(
-            findings=findings, findings_count=len(findings),
+            findings=findings,
+            findings_count=len(findings),
             evidence=evidence,
             process_exit_code=capture.returncode,
             timed_out=capture.timed_out,
             truncated_stdout=capture.truncated_stdout,
             truncated_stderr=capture.truncated_stderr,
             execution_status=execution_status_for_capture(
-                capture, successful_exit_codes=(0, 1)),
+                capture, successful_exit_codes=(0, 1)
+            ),
         )
     finally:
         if owns:
