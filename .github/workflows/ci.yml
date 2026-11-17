@@ -65,6 +65,112 @@ jobs:
             dist/*.whl
             sbom.json
 
+  # -----------------------------------------------------------------------
+  # Privileged egress suite — mirrors the documented maintainer command
+  #   sudo -E .venv/bin/python -m pytest -q -rs tests/egress
+  # from docs/TESTING.md. Needs root + iproute2 + nftables + dnsmasq +
+  # iputils-ping + acl (for the setfacl-backed sandbox dir tests).
+  # Runs in a privileged container so the runner can create network
+  # namespaces, install nftables rules, toggle sysctls, and call
+  # setpriv --reuid=nobody.
+  # -----------------------------------------------------------------------
+  egress:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+      options: --privileged --user 0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system packages (iproute2, nftables, dnsmasq, acl, ...)
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            iproute2 \
+            nftables \
+            dnsmasq \
+            procps \
+            util-linux \
+            iputils-ping \
+            libc-bin \
+            acl \
+            bash \
+            python3.12 python3.12-venv python3-pip
+      - name: Bootstrap nobody/nogroup (defensive — base-files usually provides them)
+        run: |
+          if ! id nobody >/dev/null 2>&1; then
+            useradd --system --no-create-home --uid 65534 --gid 65534 nobody || true
+          fi
+          if ! getent group nogroup >/dev/null 2>&1; then
+            groupadd --system --gid 65534 nogroup || true
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project (dev extras)
+        run: python -m pip install -e '.[dev]'
+      - name: Egress environment probes (E-00a..E-00d)
+        run: |
+          # E-00 probes — fail fast if the container cannot do netns/nft.
+          python -c "import shutil, sys; sys.exit(0 if all(shutil.which(t) for t in ('ip','nft','dnsmasq','setpriv','sysctl','setfacl')) else 1)"
+          unshare -n true   # smoke-test that netns creation works as root
+          nft list tables   # smoke-test that nft is usable
+      - name: Run egress suite (privileged)
+        run: python -m pytest -q -rs tests/egress
+      - name: Show egress results
+        if: always()
+        run: cat test-results.xml 2>/dev/null || true
+
+  # -----------------------------------------------------------------------
+  # Privileged adapter integration suite — mirrors the documented command
+  #   sudo -E .venv/bin/python -m pytest -q -rs tests/adapters/test_*_integration.py
+  # from docs/TESTING.md. The three test files synthesize their own fake
+  # nmap/httpx/subfinder shell scripts in /tmp (no real scanner binaries,
+  # no licenses, no external targets), so they need the same privileges
+  # as the egress suite (root + iproute2 + nftables + dnsmasq + setpriv).
+  # -----------------------------------------------------------------------
+  adapter-integration:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:24.04
+      options: --privileged --user 0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install system packages (iproute2, nftables, dnsmasq, acl, ...)
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates \
+            curl \
+            iproute2 \
+            nftables \
+            dnsmasq \
+            procps \
+            util-linux \
+            iputils-ping \
+            libc-bin \
+            acl \
+            bash \
+            python3.12 python3.12-venv python3-pip
+      - name: Bootstrap nobody/nogroup
+        run: |
+          if ! id nobody >/dev/null 2>&1; then
+            useradd --system --no-create-home --uid 65534 --gid 65534 nobody || true
+          fi
+          if ! getent group nogroup >/dev/null 2>&1; then
+            groupadd --system --gid 65534 nogroup || true
+          fi
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project (dev extras)
+        run: python -m pip install -e '.[dev]'
+      - name: Run adapter integration tests (privileged)
+        run: python -m pytest -q -rs tests/adapters/test_httpx_integration.py tests/adapters/test_nmap_integration.py tests/adapters/test_subfinder_integration.py
+
   secrets:
     runs-on: ubuntu-latest
     steps:
