@@ -1,0 +1,37 @@
+id: custom-idor-sequential
+
+info:
+  name: IDOR - Sequential ID Enumeration
+  author: sturmer-creative-agent
+  severity: high
+  description: Tests for Insecure Direct Object References by iterating through sequential IDs.
+  tags: idor,access-control,business-logic
+
+http:
+  - raw:
+      - |
+        GET /api/v1/user/{{id}} HTTP/1.1
+        Host: {{Hostname}}
+        User-Agent: Mozilla/5.0
+    
+    payloads:
+      id:
+        - 1
+        - 2
+        - 3
+        - 100
+        - 1000
+    
+    attack: sniper
+    
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        words:
+          - "email"
+          - "username"
+          - "name"
+        condition: or

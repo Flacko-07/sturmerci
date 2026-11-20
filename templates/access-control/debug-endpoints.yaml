@@ -1,0 +1,30 @@
+id: custom-debug-endpoints
+
+info:
+  name: Debug Endpoints - Exposed in Production
+  author: sturmer-creative-agent
+  severity: medium
+  description: Tests for debug, health, or internal API endpoints exposed in production.
+  tags: debug,exposure,misconfiguration
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}/debug"
+      - "{{BaseURL}}/health"
+      - "{{BaseURL}}/api/debug"
+      - "{{BaseURL}}/actuator"
+      - "{{BaseURL}}/metrics"
+    
+    matchers-condition: and
+    matchers:
+      - type: status
+        status:
+          - 200
+      - type: word
+        words:
+          - "debug"
+          - "health"
+          - "metrics"
+          - "actuator"
+        condition: or

