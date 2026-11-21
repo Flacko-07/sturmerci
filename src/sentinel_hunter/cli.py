@@ -36,22 +36,23 @@ def main():
 
         print("\n[+] Launching 6-Phase Autonomous Pipeline...\n")
         
-        # 3. Execute the v7 Orchestrator
-        orch_path = Path(__file__).parent / "orchestrator" / "adaptive_hunter.py"
-        cmd = ["python3", str(orch_path), args.target, "--output", args.output]
         
+        # 3. Execute the v7 Orchestrator with Policy Headers
+        orch_path = Path(__file__).parent / "orchestrator" / "adaptive_hunter.py"
+        
+        # Build header arguments if they exist in the policy
+        header_args = []
+        if hasattr(policy, 'custom_headers') and policy.custom_headers:
+            for key, value in policy.custom_headers.items():
+                header_args.extend(["--header", f"{key}: {value}"])
+
+        cmd = ["python3", str(orch_path), args.target, "--output", args.output] + header_args
+           
         try:
             subprocess.run(cmd, check=True)
             print(f"\n[+] Hunt complete. Report saved to {args.output}")
         except subprocess.CalledProcessError as e:
             print(f"[!] Orchestrator failed with exit code {e.returncode}")
             sys.exit(1)
-            
-    elif args.command == "profile":
-        profile_dir = Path(__file__).parent / "safety" / "profiles"
-        print("Available safety profiles:")
-        for p in profile_dir.glob("*.yaml"):
-            print(f"  - {p.stem}")
-
 if __name__ == "__main__":
     main()

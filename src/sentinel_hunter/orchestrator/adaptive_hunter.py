@@ -22,8 +22,9 @@ class HuntResult:
     total_cves: int = 0
 
 class AdaptiveHunter:
-    def __init__(self, base_dir="/home/nflacko/creative-logic-agent"):
+    def __init__(self, base_dir="/home/nflacko/creative-logic-agent", custom_headers=None):
         self.base_dir = Path(base_dir)
+        self.custom_headers = custom_headers or {}
         self.reports_dir = self.base_dir / "reports"
         self.reports_dir.mkdir(parents=True, exist_ok=True)
         self.recon_dir = self.base_dir / "integrations" / "recon"
@@ -115,6 +116,8 @@ class AdaptiveHunter:
         params = set(["id", "user_id", "email"]) # Fallback
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
+            if self.custom_headers:
+                headers.update(self.custom_headers)
             resp = requests.get(url, headers=headers, timeout=10, verify=False)
             soup = BeautifulSoup(resp.text, 'html.parser')
             
@@ -240,9 +243,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("target", help="Root domain (e.g., six2twelve.com)")
     parser.add_argument("--output", default="reports/hunt_v7_results.json")
+    parser.add_argument("--header", action="append", default=[], help="Custom headers (Key: Value)")
     args = parser.parse_args()
     
     hunter = AdaptiveHunter()
+    headers = {h.split(":", 1)[0].strip(): h.split(":", 1)[1].strip() for h in args.header if ":" in h}
+    hunter = AdaptiveHunter(custom_headers=headers)
     result = hunter.hunt(args.target)
     
     print(f"\n{'='*70}\n🏆 ADAPTIVE HUNT SUMMARY\n{'='*70}")

@@ -8,3 +8,4 @@ Requires-Dist: beautifulsoup4
 Requires-Dist: lxml
 Requires-Dist: ollama
 Requires-Dist: pyyaml
+Requires-Dist: websockets

@@ -6,3 +6,7 @@ reports/
 *.json
 *.txt
 !src/sentinel_hunter/safety/profiles/*.yaml
+*.egg-info/
+src/sentinel_hunter/safety/profiles/deriv_h1.yaml
+templates/business-logic/deriv-trade-manipulation.yaml
+# Target-specific profiles and templates (kept local for active hunting)

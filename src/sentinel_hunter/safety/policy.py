@@ -1,6 +1,7 @@
 import yaml
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import List, Dict
 
 @dataclass
 class SafetyPolicy:
@@ -11,6 +12,9 @@ class SafetyPolicy:
     require_approval: bool = False
     max_scan_duration_minutes: int = 60
     log_level: str = "info"
+    allowed_domains: List[str] = field(default_factory=list)
+    blocked_domains: List[str] = field(default_factory=list)
+    custom_headers: Dict[str, str] = field(default_factory=dict)
 
 def load_profile(profile_name: str) -> SafetyPolicy:
     profile_dir = Path(__file__).parent / "profiles"
