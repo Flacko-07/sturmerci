@@ -1,3 +1,27 @@
+
+import urllib3
+import requests
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# UNIVERSAL HTTP PATCH: Force verify=False and browser UA for all requests in this pipeline
+_original_get = requests.get
+_original_post = requests.post
+_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+
+def _robust_get(*args, **kwargs):
+    kwargs.setdefault("verify", False)
+    kwargs.setdefault("headers", _HEADERS)
+    kwargs.setdefault("timeout", 15)
+    return _original_get(*args, **kwargs)
+
+def _robust_post(*args, **kwargs):
+    kwargs.setdefault("verify", False)
+    kwargs.setdefault("headers", _HEADERS)
+    kwargs.setdefault("timeout", 15)
+    return _original_post(*args, **kwargs)
+
+requests.get = _robust_get
+requests.post = _robust_post
 #!/usr/bin/env python3
 """
 Ultimate Creative Logic Testing Orchestrator v3
@@ -80,7 +104,7 @@ class UltimateOrchestrator:
                 results.append(json.loads((self.reports_dir / f'sqlmap_{param}_results.json').read_text()))
         return results
 
-    def run_gitleaks(self, files_to_scan):
+    # def run_gitleaks(self, files_to_scan):
         secrets = []
         for f in files_to_scan:
             if Path(f).exists():
@@ -150,7 +174,7 @@ class UltimateOrchestrator:
             files_to_scan.extend([str(self.reports_dir / f'ffuf_{p}_results.json') for p in parameters])
             files_to_scan.extend([str(self.reports_dir / f'sqlmap_{p}_results.json') for p in parameters])
             
-        secrets = self.run_gitleaks(files_to_scan)
+        secrets = []  # Gitleaks disabled
         if secrets:
             result.tools_run.append('gitleaks_response_scanner')
             result.leaked_secrets.extend(secrets)

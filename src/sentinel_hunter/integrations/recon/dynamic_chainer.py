@@ -1,65 +1,56 @@
 #!/usr/bin/env python3
+"""Dynamic recon chainer — SCOPE-ENFORCED.
+Only chains domains within the target scope. Never recons dummy-payload
+domains (test.com etc.) or third-party CDNs. Fail-safe: no scope -> no active recon.
 """
-Dynamic Reconnaissance Chainer
-Extracts new domains/emails from tool output and triggers further recon.
-"""
-import argparse
-import re
-import subprocess
-import sys
+import argparse, re, subprocess, sys
 from pathlib import Path
 
-def extract_targets(text: str):
-    """Extract potential subdomains and emails from text."""
-    # Basic subdomain regex (e.g., api.dev.example.com)
-    domain_pattern = r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b'
-    # Basic email regex
-    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
-    
-    domains = set(re.findall(domain_pattern, text))
-    emails = set(re.findall(email_pattern, text))
-    
-    # Filter out common false positives
-    domains = {d for d in domains if not d.startswith('www.') and len(d) > 5}
-    
-    return list(domains), list(emails)
+THIRD_PARTY = ("cloudflare.com","google.com","gstatic.com","googleapis.com",
+               "w.org","wp.org","wordpress.org","schema.org","example.com",
+               "example.org","test.com","email.com","localhost","jquery.com",
+               "bootstrapcdn.com","facebook.com","twitter.com","youtube.com")
 
-def run_subfinder(domain: str, output_file: str):
-    """Run subfinder against a newly discovered domain."""
-    print(f"[*] Triggering subfinder for newly discovered domain: {domain}")
-    cmd = ["subfinder", "-d", domain, "-silent", "-o", output_file]
-    try:
-        subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        print(f"[+] Subfinder results saved to {output_file}")
-    except Exception as e:
-        print(f"[!] Subfinder failed: {e}")
+def in_scope(d, scope):
+    d, scope = d.lower().strip("."), scope.lower().strip(".")
+    return d == scope or d.endswith("." + scope)
+
+def extract(text, scope):
+    cands = set(re.findall(r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b', text))
+    kept = set()
+    for d in cands:
+        d = d.lower()
+        if any(d == tp or d.endswith("." + tp) for tp in THIRD_PARTY):
+            continue
+        if in_scope(d, scope):
+            kept.add(d)
+    return sorted(kept)
 
 def main():
-    parser = argparse.ArgumentParser(description="Chain recon tools based on tool output")
-    parser.add_argument("input_file", help="File containing tool output (e.g., nuclei/ffuf results)")
-    parser.add_argument("--output-dir", default="/tmp/dynamic_recon", help="Directory for new findings")
-    args = parser.parse_args()
-    
-    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
-    
-    if not Path(args.input_file).exists():
-        print(f"[!] Input file not found: {args.input_file}")
-        sys.exit(1)
-        
-    text = Path(args.input_file).read_text()
-    domains, emails = extract_targets(text)
-    
-    print(f"\n[+] Extracted {len(domains)} potential domains and {len(emails)} emails.")
-    
-    for domain in domains:
-        # Skip the original target if you want, or let it run
-        out_file = f"{args.output_dir}/subfinder_{domain.replace('.', '_')}.txt"
-        run_subfinder(domain, out_file)
-        
-    if emails:
-        email_file = f"{args.output_dir}/extracted_emails.txt"
-        Path(email_file).write_text("\n".join(emails))
-        print(f"[+] Extracted emails saved to {email_file}")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("input_file")
+    ap.add_argument("--scope", default=None, help="target domain, e.g. kaluafarms.com")
+    ap.add_argument("--output-dir", default="/tmp/dynamic_recon")
+    a = ap.parse_args()
+    Path(a.output_dir).mkdir(parents=True, exist_ok=True)
+    if not Path(a.input_file).exists():
+        print(f"[!] input not found: {a.input_file}"); sys.exit(1)
+
+    if not a.scope:
+        print("[!] No --scope provided; skipping active chain recon (fail-safe).")
+        return
+
+    domains = extract(Path(a.input_file).read_text(), a.scope)
+    print(f"[+] In-scope domains to chain: {len(domains)} (scope={a.scope})")
+    for d in domains:
+        out = f"{a.output_dir}/subfinder_{d.replace('.', '_')}.txt"
+        print(f"[*] subfinder -> {d}")
+        try:
+            subprocess.run(["subfinder", "-d", d, "-silent", "-o", out],
+                           capture_output=True, text=True, timeout=120)
+        except Exception as e:
+            print(f"[!] subfinder failed for {d}: {e}")
+    print("[+] done (out-of-scope domains dropped)")
 
 if __name__ == "__main__":
     main()

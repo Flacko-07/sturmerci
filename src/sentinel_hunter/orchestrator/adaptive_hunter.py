@@ -64,6 +64,11 @@ class AdaptiveHunter:
 
     def phase_2_probing_and_fuzzing(self, hosts):
         print(f"\n{'#'*70}\n# PHASE 2: HTTP PROBING & DIRECTORY FUZZING\n{'#'*70}")
+        # FIX: Ensure root domain is ALWAYS included, even if subfinder found nothing
+        clean_target = getattr(self, 'target_name', '')
+        if clean_target not in hosts:
+            hosts.append(clean_target)
+
         hosts_file = self.reports_dir / "all_hosts.txt"
         hosts_file.write_text("\n".join(hosts))
         out = self.reports_dir / "httpx_live.txt"
@@ -75,21 +80,23 @@ class AdaptiveHunter:
             for line in out.read_text().splitlines():
                 if any(code in line for code in ["200", "403", "401", "405", "30"]):
                     ep = line.split(" ")[0].rstrip("/")
-                    if ep not in live_endpoints: # Deduplication
+                    if ep not in live_endpoints:
                         live_endpoints.append(ep)
-                        
-                        # Gobuster
-                        gb_out = str(self.reports_dir / f"gobuster_{ep.replace('https://','').replace('/','_')}.json")
-                        self.run_cmd(["python3", str(self.recon_dir / "gobuster_runner.py"), ep, "--output", gb_out], f"Gobuster on {ep}")
-                        
-                        if Path(gb_out).exists():
-                            try:
-                                gb_data = json.loads(Path(gb_out).read_text())
-                                for path in gb_data.get("paths", []):
-                                    clean_path = path.split()[0] if " " in path else path
-                                    if clean_path.endswith(".js"): js_files.append(f"{ep}/{clean_path}")
-                                    elif clean_path.endswith(".py"): py_files.append(f"{ep}/{clean_path}")
-                            except: pass
+
+        # Run Gobuster on all discovered live endpoints
+        for ep in live_endpoints:
+            gb_out = self.reports_dir / f"gobuster_{ep.replace('https://','').replace('http://','').replace('/','_')}.json"
+            self.run_cmd(["python3", str(self.recon_dir / "gobuster_runner.py"), ep, "--output", str(gb_out)], f"Gobuster on {ep}")
+            
+            if Path(gb_out).exists():
+                try:
+                    gb_data = json.loads(Path(gb_out).read_text())
+                    for path in gb_data.get("paths", []):
+                        clean_path = path.split()[0] if " " in path else path
+                        if clean_path.endswith(".js"): js_files.append(f"{ep}/{clean_path}")
+                        elif clean_path.endswith(".py"): py_files.append(f"{ep}/{clean_path}")
+                except: pass
+                
         print(f"[+] Found {len(live_endpoints)} unique live endpoints, {len(js_files)} JS files, {len(py_files)} PY files.")
         return live_endpoints, js_files, py_files
 
@@ -215,6 +222,11 @@ class AdaptiveHunter:
         return secrets
 
     def hunt(self, target):
+        # ISOLATED WORKSPACE: Every target gets its own folder
+        self.target_name = target.replace('https://','').replace('http://','').split('/')[0].split(':')[0]
+        self.reports_dir = self.base_dir / 'reports' / self.target_name
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
+        print(f'[*] Isolated workspace created: {self.reports_dir}')
         print(f"\n{'#'*70}\n# 🧠 ADAPTIVE LOGIC HUNTER v7\n# Target: {target}\n{'#'*70}")
         result = HuntResult(target=target)
         

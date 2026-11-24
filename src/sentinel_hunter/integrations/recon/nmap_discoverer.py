@@ -23,7 +23,10 @@ def run_nmap(target, output_file):
                     # Heuristic: if it looks like HTTP or we don't know, probe it
                     if any(x in name for x in ["http", "ssl", "unknown", "tcpwrapped"]) or port_num in ["80", "443", "8080", "8443"]:
                         scheme = "https" if "ssl" in name or port_num in ["443", "8443"] else "http"
-                        live_endpoints.append(f"{scheme}://{ip}:{port_num}")
+                        product = service.get("product", "") if service is not None else ""
+                        version = service.get("version", "") if service is not None else ""
+                        svc_info = f"{name} {product} {version}".strip()
+                        live_endpoints.append({"url": f"{scheme}://{ip}:{port_num}", "port": port_num, "service": svc_info})
         print(f"[+] Nmap found {len(live_endpoints)} potential web endpoints.")
         return {"endpoints": live_endpoints}
     except Exception as e:
